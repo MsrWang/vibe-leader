@@ -1,0 +1,1 @@
+{"type":"object","oneOf":[{"type":"object","properties":{"method":{"const":"initialized"}},"required":["method"]}]}

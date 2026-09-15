@@ -1,0 +1,1 @@
+{"type":"object","definitions":{"ThreadMemoryMode":{"type":"string","enum":["enabled","disabled"]}},"properties":{"threadId":{"type":"string"},"mode":{"$ref":"#/definitions/ThreadMemoryMode"}},"required":["threadId","mode"]}

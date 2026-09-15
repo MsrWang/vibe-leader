@@ -1,0 +1,24 @@
+{
+  "warnings": [
+    {
+      "expected_class": "NETWORK_BLOCK_EXPECTED",
+      "raw": "network access unavailable inside isolated query"
+    },
+    {
+      "expected_class": "UPSTREAM_METADATA_IGNORED",
+      "raw": "upstream metadata refresh ignored"
+    },
+    {
+      "expected_class": "SKILL_LOAD_WARNING",
+      "raw": "skill load warning: invalid optional metadata"
+    },
+    {
+      "expected_class": "STATE_ISOLATION_WARNING",
+      "raw": "temporary state cleanup warning"
+    },
+    {
+      "expected_class": "OTHER_QUERY_WARNING",
+      "raw": "unclassified fixture warning"
+    }
+  ]
+}

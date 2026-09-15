@@ -1,0 +1,76 @@
+{
+  "id": 2,
+  "result": {
+    "data": [
+      {
+        "cwd": "/fixture/project",
+        "skills": [
+          {
+            "name": "verification-before-completion",
+            "description": "Use before claiming work is complete.",
+            "path": "/skills/verification-before-completion/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "brainstorming",
+            "description": "Use before creative work.",
+            "path": "/skills/brainstorming/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "using-superpowers",
+            "description": "Use at the start of a conversation.",
+            "path": "/skills/using-superpowers/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "deploy-to-vercel",
+            "description": "Deploy applications and websites to Vercel.",
+            "path": "/skills/deploy-to-vercel/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "agent-skills:test-driven-development",
+            "description": "Use when implementing logic or fixing bugs.",
+            "path": "/plugins/agent-skills/test-driven-development/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "test-driven-development",
+            "description": "Use before implementing a feature or bugfix.",
+            "path": "/skills/test-driven-development/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "agent-skills:git-workflow-and-versioning",
+            "description": "Use when making code changes.",
+            "path": "/plugins/agent-skills/git-workflow-and-versioning/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "agent-skills:shipping-and-launch",
+            "description": "Use before production launches.",
+            "path": "/plugins/agent-skills/shipping-and-launch/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "skillspector-security-gate",
+            "description": "Use before third-party skill installation.",
+            "path": "/skills/skillspector-security-gate/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          }
+        ],
+        "errors": []
+      }
+    ]
+  }
+}

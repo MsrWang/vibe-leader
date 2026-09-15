@@ -1,0 +1,1 @@
+{"type":"object","definitions":{"PermissionProfileSummary":{"type":"object","properties":{"id":{"type":"string"},"allowed":{"type":"boolean"}},"required":["id","allowed"]}},"properties":{"data":{"type":"array","items":{"$ref":"#/definitions/PermissionProfileSummary"}},"nextCursor":{"type":["string","null"]}},"required":["data"]}

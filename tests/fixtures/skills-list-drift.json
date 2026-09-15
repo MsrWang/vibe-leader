@@ -1,0 +1,46 @@
+{
+  "id": 2,
+  "result": {
+    "data": [
+      {
+        "cwd": "/fixture/project",
+        "skills": [
+          {
+            "name": "using-superpowers",
+            "description": "Use at the start of a conversation.",
+            "path": "/skills/using-superpowers/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          },
+          {
+            "name": "using-superpowers",
+            "description": "Duplicate discovery entry.",
+            "path": "/other/using-superpowers/SKILL.md",
+            "scope": "repo",
+            "enabled": true
+          },
+          {
+            "name": "deploy-to-vercel",
+            "description": "Deploy applications and websites to Vercel.",
+            "path": "/skills/deploy-to-vercel/SKILL.md",
+            "scope": "user",
+            "enabled": false
+          },
+          {
+            "name": "new-english-skill",
+            "description": "A newly installed skill without a Chinese map.",
+            "path": "/skills/new-english-skill/SKILL.md",
+            "scope": "user",
+            "enabled": true
+          }
+        ],
+        "errors": [
+          {
+            "path": "/skills/broken/SKILL.md",
+            "message": "invalid frontmatter"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,184 @@
+# SPDX-License-Identifier: MPL-2.0
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+schema_version = 2
+primary_router = "using-superpowers"
+explicit_only = ["vibe-project-lead-zh", "agent-skills:using-agent-skills"]
+
+[attention_budget]
+process_default = 1
+domain_default = 2
+hard_cap = false
+
+[categories]
+supervision = { label_zh = "主管与流程", order = 10 }
+planning = { label_zh = "需求与规划", order = 20 }
+exploration = { label_zh = "代码理解与资料", order = 30 }
+development = { label_zh = "开发与测试", order = 40 }
+review = { label_zh = "审查与安全", order = 50 }
+frontend = { label_zh = "网页与界面", order = 60 }
+release = { label_zh = "部署与运维", order = 70 }
+browser = { label_zh = "浏览器与网页自动化", order = 80 }
+artifacts = { label_zh = "文档与内容工具", order = 90 }
+system = { label_zh = "Codex 系统工具", order = 100 }
+unmapped = { label_zh = "未映射", order = 999 }
+
+[phases]
+intake = { label_zh = "需求澄清", order = 10 }
+bind = { label_zh = "项目绑定", order = 20 }
+discover = { label_zh = "代码探索", order = 30 }
+spec = { label_zh = "规格设计", order = 40 }
+plan = { label_zh = "任务规划", order = 50 }
+execute = { label_zh = "实现", order = 60 }
+verify = { label_zh = "验证", order = 70 }
+review = { label_zh = "审查", order = 80 }
+release = { label_zh = "部署上线", order = 90 }
+checkpoint = { label_zh = "进度检查点", order = 100 }
+
+[phase_priorities]
+intake = ["brainstorming", "agent-skills:interview-me", "agent-skills:idea-refine"]
+bind = ["agent-skills:context-engineering"]
+discover = ["agent-skills:context-engineering", "agent-skills:source-driven-development"]
+spec = ["agent-skills:spec-driven-development", "brainstorming", "agent-skills:api-and-interface-design"]
+plan = ["writing-plans", "agent-skills:planning-and-task-breakdown"]
+execute = ["test-driven-development", "agent-skills:incremental-implementation", "using-git-worktrees"]
+verify = ["verification-before-completion", "agent-skills:test-driven-development"]
+review = ["requesting-code-review", "agent-skills:code-review-and-quality", "agent-skills:security-and-hardening"]
+release = ["agent-skills:shipping-and-launch", "agent-skills:ci-cd-and-automation", "deploy-to-vercel"]
+checkpoint = ["agent-skills:documentation-and-adrs"]
+
+[mandatory.before_any_action]
+ids = ["using-superpowers"]
+
+[mandatory.before_project_write]
+ids = ["test-driven-development", "agent-skills:git-workflow-and-versioning"]
+
+[mandatory.before_completion]
+ids = ["verification-before-completion"]
+
+[mandatory.before_third_party_install]
+ids = ["skillspector-security-gate"]
+
+[mandatory.before_release]
+ids = ["agent-skills:shipping-and-launch"]
+
+[skills]
+"agent-skills:api-and-interface-design" = { label_zh = "API 与接口设计", purpose_zh = "设计稳定的 API、模块边界和公共契约", category = "development", phases = ["spec", "execute"] }
+"agent-skills:browser-testing-with-devtools" = { label_zh = "浏览器 DevTools 测试", purpose_zh = "用真实浏览器检查 DOM、控制台、网络和性能", category = "browser", phases = ["verify", "review"] }
+"agent-skills:ci-cd-and-automation" = { label_zh = "CI/CD 与自动化", purpose_zh = "建立持续集成、质量门禁和部署流水线", category = "release", phases = ["plan", "release"] }
+"agent-skills:code-review-and-quality" = { label_zh = "代码质量审查", purpose_zh = "从多个维度审查合并前的代码质量", category = "review", phases = ["review"] }
+"agent-skills:code-simplification" = { label_zh = "代码简化", purpose_zh = "在不改变行为的前提下减少复杂度", category = "development", phases = ["execute", "review"] }
+"agent-skills:context-engineering" = { label_zh = "上下文工程", purpose_zh = "整理项目上下文并减少任务切换造成的信息噪声", category = "supervision", phases = ["bind", "discover"] }
+"agent-skills:debugging-and-error-recovery" = { label_zh = "调试与错误恢复", purpose_zh = "系统定位测试、构建和运行异常的根因", category = "development", phases = ["execute", "verify"] }
+"agent-skills:deprecation-and-migration" = { label_zh = "弃用与迁移", purpose_zh = "规划旧接口、旧系统和数据迁移", category = "release", phases = ["spec", "release"] }
+"agent-skills:documentation-and-adrs" = { label_zh = "文档与 ADR", purpose_zh = "记录架构决策和未来维护所需上下文", category = "supervision", phases = ["spec", "checkpoint"] }
+"agent-skills:doubt-driven-development" = { label_zh = "质疑驱动开发", purpose_zh = "对高风险非平凡决策做新鲜上下文对抗审查", category = "review", phases = ["spec", "review"] }
+"agent-skills:frontend-ui-engineering" = { label_zh = "前端 UI 工程", purpose_zh = "构建可访问、响应式且达到生产质量的界面", category = "frontend", phases = ["execute", "verify"] }
+"agent-skills:git-workflow-and-versioning" = { label_zh = "Git 工作流与版本", purpose_zh = "用分支、原子提交和版本管理控制变更", category = "development", phases = ["plan", "execute", "release"] }
+"agent-skills:idea-refine" = { label_zh = "想法提炼", purpose_zh = "发散、质疑并收敛尚未成形的想法", category = "planning", phases = ["intake"] }
+"agent-skills:incremental-implementation" = { label_zh = "增量实现", purpose_zh = "把多文件改动拆成可测试、可回滚的小步", category = "development", phases = ["execute"] }
+"agent-skills:interview-me" = { label_zh = "需求访谈", purpose_zh = "通过逐问澄清真实目标、用户和成功标准", category = "planning", phases = ["intake"] }
+"agent-skills:observability-and-instrumentation" = { label_zh = "可观测性", purpose_zh = "增加日志、指标、追踪和告警证据", category = "release", phases = ["execute", "release"] }
+"agent-skills:performance-optimization" = { label_zh = "性能优化", purpose_zh = "依据测量定位并修复前后端性能瓶颈", category = "development", phases = ["verify", "review"] }
+"agent-skills:planning-and-task-breakdown" = { label_zh = "计划与任务拆解", purpose_zh = "把清晰规格拆成有依赖顺序的可执行任务", category = "planning", phases = ["plan"] }
+"agent-skills:security-and-hardening" = { label_zh = "安全加固", purpose_zh = "检查输入、认证、存储和外部集成的安全风险", category = "review", phases = ["execute", "review", "release"] }
+"agent-skills:shipping-and-launch" = { label_zh = "发布与上线", purpose_zh = "准备上线检查、分阶段发布、监控和回滚", category = "release", phases = ["release"] }
+"agent-skills:source-driven-development" = { label_zh = "资料驱动开发", purpose_zh = "用官方资料和当前源码约束技术实现", category = "exploration", phases = ["discover", "spec", "execute"] }
+"agent-skills:spec-driven-development" = { label_zh = "规格驱动开发", purpose_zh = "在重大功能和项目开始前形成明确规格", category = "planning", phases = ["spec"] }
+"agent-skills:test-driven-development" = { label_zh = "工程 TDD", purpose_zh = "以失败测试驱动逻辑实现和行为变更", category = "development", phases = ["execute", "verify"] }
+"agent-skills:using-agent-skills" = { label_zh = "Addy Skill 路由", purpose_zh = "显式浏览 Addy 工程 Skill；不作为默认元路由", category = "supervision", phases = ["discover"] }
+"brainstorming" = { label_zh = "方案构思", purpose_zh = "在创作或实现前澄清意图、方案和设计", category = "planning", phases = ["intake", "spec"] }
+"browser:control-in-app-browser" = { label_zh = "应用内浏览器控制", purpose_zh = "打开、检查和操作 Codex 应用内浏览器", category = "browser", phases = ["execute", "verify"] }
+"chrome:control-chrome" = { label_zh = "Chrome 登录态控制", purpose_zh = "在获得授权后操作用户现有 Chrome 会话", category = "browser", phases = ["execute", "verify"] }
+"deploy-to-vercel" = { label_zh = "部署到 Vercel", purpose_zh = "创建 Vercel 预览或生产部署并返回链接", category = "release", phases = ["release"] }
+"dispatching-parallel-agents" = { label_zh = "并行子任务", purpose_zh = "把互不依赖且不共享写状态的任务并行委派", category = "supervision", phases = ["plan", "execute"] }
+"documents:documents" = { label_zh = "Word 文档", purpose_zh = "创建、编辑、批注并渲染验证 Word 文档", category = "artifacts", phases = ["execute", "verify"] }
+"executing-plans" = { label_zh = "执行实施计划", purpose_zh = "按已写计划分批执行并设置审查检查点", category = "supervision", phases = ["execute"] }
+"finishing-a-development-branch" = { label_zh = "完成开发分支", purpose_zh = "测试通过后选择合并、保留或清理分支", category = "development", phases = ["release"] }
+"focus-action-zh" = { label_zh = "中文行动聚焦", purpose_zh = "让中文回复行动优先、进度清楚且保留必要细节", category = "supervision", phases = ["intake", "checkpoint"] }
+"opencli-adapter-author" = { label_zh = "OpenCLI 适配器开发", purpose_zh = "为新网站编写或扩展 OpenCLI 适配器", category = "browser", phases = ["execute", "verify"] }
+"opencli-autofix" = { label_zh = "OpenCLI 自动修复", purpose_zh = "收集证据并修复失效的 OpenCLI 适配器", category = "browser", phases = ["execute", "verify"] }
+"opencli-browser" = { label_zh = "OpenCLI 浏览器操作", purpose_zh = "使用真实 Chrome 做临时网页检查、填写和点击", category = "browser", phases = ["execute", "verify"] }
+"opencli-browser-sitemap" = { label_zh = "OpenCLI 站点导航", purpose_zh = "利用站点地图减少登录态网页中的盲目导航", category = "browser", phases = ["discover", "execute"] }
+"opencli-sitemap-author" = { label_zh = "OpenCLI 站点地图编写", purpose_zh = "沉淀网站页面状态、动作和降级路径知识", category = "browser", phases = ["discover", "execute"] }
+"opencli-usage" = { label_zh = "OpenCLI 使用入口", purpose_zh = "选择 OpenCLI 命令、适配器和后续专用 Skill", category = "browser", phases = ["discover"] }
+"pdf:pdf" = { label_zh = "PDF 工具", purpose_zh = "读取、创建、填写、渲染并验证 PDF", category = "artifacts", phases = ["execute", "verify"] }
+"presentations:Presentations" = { label_zh = "演示文稿", purpose_zh = "创建和编辑 PowerPoint 或 Google Slides", category = "artifacts", phases = ["execute", "verify"] }
+"receiving-code-review" = { label_zh = "处理代码审查意见", purpose_zh = "核验证据后处理收到的代码审查建议", category = "review", phases = ["review", "execute"] }
+"requesting-code-review" = { label_zh = "请求代码审查", purpose_zh = "完成重要改动后发起需求和质量审查", category = "review", phases = ["review"] }
+"skillspector-security-gate" = { label_zh = "第三方 Skill 安全门禁", purpose_zh = "安装第三方 Skill、插件或工具前做安全检查", category = "review", phases = ["discover", "review"] }
+"smart-search" = { label_zh = "OpenCLI 智能搜索", purpose_zh = "为站点、社交媒体和资料查询选择搜索路径", category = "exploration", phases = ["discover"] }
+"spreadsheets:Spreadsheets" = { label_zh = "电子表格", purpose_zh = "创建、分析并验证独立表格文件", category = "artifacts", phases = ["execute", "verify"] }
+"spreadsheets:excel-live-control" = { label_zh = "Excel 实时控制", purpose_zh = "操作用户当前打开的 Microsoft Excel 工作簿", category = "artifacts", phases = ["execute", "verify"] }
+"subagent-driven-development" = { label_zh = "子 Agent 驱动开发", purpose_zh = "按计划逐任务委派并在任务间双重审查", category = "supervision", phases = ["execute", "review"] }
+"systematic-debugging" = { label_zh = "系统化调试", purpose_zh = "在修复前复现并定位错误根因", category = "development", phases = ["execute", "verify"] }
+"template-creator:template-creator" = { label_zh = "模板创建器", purpose_zh = "从参考成品创建或更新个人工件模板", category = "artifacts", phases = ["execute"] }
+"test-driven-development" = { label_zh = "TDD 测试驱动开发", purpose_zh = "任何功能或修复先写失败测试再实现", category = "development", phases = ["execute", "verify"] }
+"using-git-worktrees" = { label_zh = "Git Worktree 隔离", purpose_zh = "在实施计划前创建或确认隔离工作区", category = "development", phases = ["bind", "execute"] }
+"using-superpowers" = { label_zh = "Superpowers 主流程", purpose_zh = "在任务开始时发现并正确加载适用 Skill", category = "supervision", phases = ["intake", "bind", "discover", "spec", "plan", "execute", "verify", "review", "release", "checkpoint"] }
+"vercel-composition-patterns" = { label_zh = "React 组合模式", purpose_zh = "设计可扩展组件 API，减少布尔属性膨胀", category = "frontend", phases = ["spec", "execute", "review"] }
+"vercel-optimize" = { label_zh = "Vercel 性能与成本优化", purpose_zh = "依据指标优化 Vercel 项目的性能和成本", category = "release", phases = ["verify", "release"] }
+"vercel-react-best-practices" = { label_zh = "React 与 Next.js 最佳实践", purpose_zh = "检查 React 和 Next.js 性能实现模式", category = "frontend", phases = ["execute", "review"] }
+"vercel-react-native-skills" = { label_zh = "React Native 最佳实践", purpose_zh = "优化 React Native 和 Expo 移动应用", category = "frontend", phases = ["execute", "review"] }
+"vercel-react-view-transitions" = { label_zh = "React 视图过渡", purpose_zh = "实现 React 页面和组件状态间的原生感动画", category = "frontend", phases = ["execute", "verify"] }
+"verification-before-completion" = { label_zh = "完成前验证", purpose_zh = "在宣称完成前运行当前证据并核对输出", category = "review", phases = ["verify", "checkpoint"] }
+"vibe-project-lead-zh" = { label_zh = "中文跨项目研发主管", purpose_zh = "用中文绑定项目、规划实施、组织验证并执行安全审批门禁", category = "supervision", phases = ["intake", "bind", "discover", "spec", "plan", "execute", "verify", "review", "release", "checkpoint"] }
+"vibehub" = { label_zh = "Vibe Coding 术语助手", purpose_zh = "把口语化开发需求对应到准确专业术语", category = "supervision", phases = ["intake", "checkpoint"] }
+"visualize:visualize" = { label_zh = "交互可视化", purpose_zh = "创建图表、流程、模拟器和交互式说明", category = "artifacts", phases = ["spec", "execute"] }
+"web-design-guidelines" = { label_zh = "网页设计质检", purpose_zh = "审查界面可访问性、交互和移动端体验", category = "frontend", phases = ["review", "verify"] }
+"writing-guidelines" = { label_zh = "写作规范质检", purpose_zh = "审查文档的结构、语气和表达质量", category = "artifacts", phases = ["review"] }
+"writing-plans" = { label_zh = "编写实施计划", purpose_zh = "把已批准规格写成可测试的逐步实施计划", category = "planning", phases = ["plan"] }
+"writing-skills" = { label_zh = "编写与测试 Skill", purpose_zh = "用行为 TDD 创建、验证并部署新 Skill", category = "system", phases = ["spec", "execute", "verify"] }
+"imagegen" = { label_zh = "图像生成", purpose_zh = "生成或编辑照片、插画、纹理和位图素材", category = "artifacts", phases = ["execute"] }
+"openai-docs" = { label_zh = "OpenAI 官方文档", purpose_zh = "查询 OpenAI 产品、API 和 Codex 的当前官方资料", category = "exploration", phases = ["discover", "spec"] }
+"plugin-creator" = { label_zh = "Codex 插件创建器", purpose_zh = "创建和验证 Codex 插件及个人 marketplace", category = "system", phases = ["execute", "verify"] }
+"review-agent" = { label_zh = "只读审查 Agent", purpose_zh = "对指定代码变更做缺陷优先的只读审查", category = "review", phases = ["review"] }
+"skill-creator" = { label_zh = "Skill 创建器", purpose_zh = "创建或更新符合 Codex 规范的 Skill", category = "system", phases = ["spec", "execute", "verify"] }
+"skill-installer" = { label_zh = "Skill 安装器", purpose_zh = "从受支持来源安装 Codex Skill", category = "system", phases = ["release"] }
+
+# Routing is separate from the legacy complete-inventory audit above.
+# Host/user/loaded-Skill requirements arrive explicitly for each current action.
+[routing]
+core_ids = ["vibe-project-lead-zh"]
+
+[[routing.capabilities]]
+label_zh = "项目主管"
+purpose_zh = "绑定项目、澄清目标、规划执行、核验交付；主管自身必需"
+example_ids = ["vibe-project-lead-zh"]
+
+[[routing.capabilities]]
+label_zh = "需求与计划"
+purpose_zh = "需要时澄清方案、拆解任务；扩展示例"
+example_ids = ["brainstorming", "writing-plans"]
+
+[[routing.capabilities]]
+label_zh = "代码实现与调试"
+purpose_zh = "实现、测试、复现并定位问题；扩展示例"
+example_ids = ["test-driven-development", "systematic-debugging"]
+
+[[routing.capabilities]]
+label_zh = "验证与审查"
+purpose_zh = "核对完成证据、审查变更；扩展示例"
+example_ids = ["verification-before-completion", "requesting-code-review"]
+
+[[routing.capabilities]]
+label_zh = "网页与界面"
+purpose_zh = "实现界面并检查可访问性、响应式与交互；扩展示例"
+example_ids = ["web-design-guidelines"]
+
+[[routing.capabilities]]
+label_zh = "文件与视觉产物"
+purpose_zh = "按当前发现选择文档、表格、演示或图像工具；扩展示例"
+example_ids = ["imagegen", "visualize:visualize"]
+
+[[routing.capabilities]]
+label_zh = "安装与外部工具"
+purpose_zh = "当前要求触发时执行第三方安全审查；扩展示例，不代表安装批准"
+example_ids = ["skillspector-security-gate"]
+
+[[routing.capabilities]]
+label_zh = "发布与回退"
+purpose_zh = "按目标环境选择发布工具并保留验证、审批及回退；扩展示例"
+example_ids = ["finishing-a-development-branch"]

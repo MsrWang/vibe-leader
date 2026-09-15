@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MPL-2.0
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+interface:
+  display_name: "中文跨项目研发主管"
+  short_description: "用中文管理项目调查、需求规划、实施验证、用户验收与安全审批门禁"
+  default_prompt: "使用 $vibe-project-lead-zh，以中文研发主管方式接管当前项目；先执行 pwd 并绑定项目，再调查、推荐、规划和验收。"
+
+policy:
+  allow_implicit_invocation: false

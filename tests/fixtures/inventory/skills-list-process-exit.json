@@ -1,0 +1,8 @@
+{
+  "behavior": "PROCESS_EXIT",
+  "returncode": 17,
+  "stderr": [
+    "app-server stopped while reading /private/user/state.sqlite",
+    "authorization=fixture-secret-must-not-escape"
+  ]
+}

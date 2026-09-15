@@ -1,0 +1,1 @@
+{"type":"object","definitions":{"Turn":{"type":"object","properties":{"id":{"type":"string"},"status":{"enum":["inProgress","completed","failed","interrupted"]},"items":{"type":"array"}},"required":["id","status","items"]}},"properties":{"threadId":{"type":"string"},"turn":{"$ref":"#/definitions/Turn"}},"required":["threadId","turn"]}

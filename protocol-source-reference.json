@@ -1,0 +1,152 @@
+{
+  "experimental_output_reproduced": false,
+  "files": [
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/ClientNotification.json",
+      "reference_sha256": "b27c7aedb4ab6a5a0798bfeb0ee36f45be199e7972c36a0adaa9b10e7ef77f9f",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 1471,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/common.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/ClientRequest.json",
+      "reference_sha256": "5a7d5c857b434d0750c2387aaad029396074cf72dccb84a058dec7d07acc73f3",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 215,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/common.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v1/InitializeResponse.json",
+      "reference_sha256": "ef4825f056ecba5712a6fe96848c05a3c5a5ef2c908e5378189feb8b538fda4b",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 64,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v1.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ExperimentalFeatureListResponse.json",
+      "reference_sha256": "1957e04d616471e3b39cc1199961cec5505620266ab84a8a467d9e709e45eb7f",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 66,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/experimental_feature.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ItemCompletedNotification.json",
+      "reference_sha256": "ff3b2adf240d8647c834cd74450d03f3d149b9f0dcaa1d2bdc9ddbfdad6caa76",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 1310,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/item.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ItemStartedNotification.json",
+      "reference_sha256": "4e9b95cc9d2ce53b4b5a51ed6023d65e1b27b27f399aa13d2e68e208e635bbd7",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 1236,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/item.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ListMcpServerStatusResponse.json",
+      "reference_sha256": "c20ef02303beca69be087433c6b21220363ee0ec95790f99394b20078978c676",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 73,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/mcp.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/PermissionProfileListResponse.json",
+      "reference_sha256": "df83614f7c30676263e47242477eab68a8384b80740a3b9b0b74a8d0079181d4",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 406,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/permissions.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/SkillsListParams.json",
+      "reference_sha256": "392c71e193bc66765fdf153b64aa95fe1d9fb4e8361a29588c5f08032840a9b0",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 21,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/plugin.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/SkillsListResponse.json",
+      "reference_sha256": "81481db0b1375c6eeb1aa33d00a8ec6c82ce8c5e0b69aa4c08079b6cae7064e3",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 34,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/plugin.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ThreadMemoryModeSetParams.json",
+      "reference_sha256": "f40696f00d53a09695f4b500a8120af5629204bb268afd6bb5720edec8017637",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 943,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/thread.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ThreadMemoryModeSetResponse.json",
+      "reference_sha256": "9091a8164f97eaca182b3d06d0e5a59e923c880ebc0148056c453c651f5b46cb",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 951,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/thread.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ThreadStartParams.json",
+      "reference_sha256": "3c9be609bbabd420cdbaa985d7f9972a242519c6e8419806317092f70370f981",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 56,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/thread.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ThreadStartResponse.json",
+      "reference_sha256": "1a376c54f4e9a5df7a49e45fe099c76cb4793a88318247e39b4d4abb06e4b5d4",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 170,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/thread.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/ThreadTokenUsageUpdatedNotification.json",
+      "reference_sha256": "4d0a2a65ae0d7d2eef230c3c8cc02b57cc0c8f03eca01f99a11c457d6fb2ea7b",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 1465,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/thread.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/TurnCompletedNotification.json",
+      "reference_sha256": "a4ac2047642832ddd3cf78a19a605bb87cd93e9e0f3d8057fb17d032b44b5c22",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 407,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/turn.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/TurnInterruptParams.json",
+      "reference_sha256": "fd3df3578c7ea56360c79d3ca0325e5a5aa2ceb939c6347374cc0a349fe71d89",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 209,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/turn.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/TurnInterruptResponse.json",
+      "reference_sha256": "9091a8164f97eaca182b3d06d0e5a59e923c880ebc0148056c453c651f5b46cb",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 217,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/turn.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/TurnStartParams.json",
+      "reference_sha256": "942f4ef96bffb7b32377511d0c17cdf7aa1afa5b19095099554a1bf177915938",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 71,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/turn.rs"
+    },
+    {
+      "path": "tests/fixtures/evaluation_surface/schema/v2/TurnStartResponse.json",
+      "reference_sha256": "8a4e3fb55d2d0d3671b120b40baeb957d67b96897fbbbdf30bd0e8fe72ffbaa2",
+      "relationship": "modified-minimal-fixture",
+      "upstream_line": 166,
+      "upstream_path": "codex-rs/app-server-protocol/src/protocol/v2/turn.rs"
+    }
+  ],
+  "historical_binary_verified": false,
+  "kind": "protocol-source-reference",
+  "reference_kind": "pre-adaptation-fixture",
+  "schema_version": 1,
+  "upstream_commit": "86cc9f2177cad015befd595286d8767a650f7d13",
+  "upstream_repository": "https://github.com/openai/codex",
+  "upstream_tag": "rust-v0.146.0-alpha.9.2"
+}

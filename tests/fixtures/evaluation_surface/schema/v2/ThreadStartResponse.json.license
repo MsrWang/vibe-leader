@@ -1,0 +1,25 @@
+Applies to: ThreadStartResponse.json
+SPDX-License-Identifier: Apache-2.0
+Copyright 2025 OpenAI
+
+Modified for Vibe Leader: minimal test fixture with fields removed,
+types simplified, enums narrowed, strict local constraints, and auxiliary
+definitions split as applicable. This is not an unmodified official schema.
+
+Upstream: https://github.com/openai/codex/blob/86cc9f2177cad015befd595286d8767a650f7d13/codex-rs/app-server-protocol/src/protocol/v2/thread.rs#L170
+Reference version: rust-v0.146.0-alpha.9.2
+Source mapping: protocol-source-reference.json in the full source package.
+License and retained upstream notices: LICENSES/Apache-2.0.txt
+and LICENSES/openai-codex-NOTICE.txt in the full source package.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

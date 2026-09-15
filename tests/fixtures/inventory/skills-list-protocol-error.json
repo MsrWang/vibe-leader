@@ -1,0 +1,4 @@
+{
+  "behavior": "PROTOCOL_ERROR",
+  "stdout_line": "this is not JSON-RPC"
+}

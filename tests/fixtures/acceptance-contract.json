@@ -1,0 +1,12 @@
+{
+  "kind": "synthetic-acceptance-contract",
+  "in_progress": {
+    "technical-acceptance.md": "合成测试资料：非真实执行、非本产品验收、非用户批准。\n状态：合成值\n需求或门禁 ID：合成值\n方法或命令：合成值\ncwd：合成值\nHEAD / diff 或适用环境：合成值\n关键结果：合成值\n已通过：合成值\n警告：合成值\n未验证：合成值\n未知：合成值\n用户验收：合成值\n下一门禁：合成值\n版本状态：IN_PROGRESS\nWAITING_GATE\nbehavior-evaluation.md SYNTHETIC-BEHAVIOR\nevaluation-surface-preflight.md SYNTHETIC-PREFLIGHT\nuser-acceptance.md SYNTHETIC-USER\n"
+  },
+  "user_accepted": {
+    "technical-acceptance.md": "合成测试资料：非真实执行、非本产品验收、非用户批准。\n状态：合成值\n需求或门禁 ID：合成值\n方法或命令：合成值\ncwd：合成值\nHEAD / diff 或适用环境：合成值\n关键结果：合成值\n已通过：合成值\n警告：合成值\n未验证：合成值\n未知：合成值\n用户验收：合成值\n下一门禁：合成值\n版本状态：USER_ACCEPTED\nSYNTHETIC-INSTALL install-manifest 禁用 回滚 当前候选\n| SYNTHETIC-INSTALL | PASS |\n| SYNTHETIC-BEHAVIOR | PASS |\n| SYNTHETIC-PREFLIGHT | PASS |\n| SYNTHETIC-USER | PASS |\n",
+    "behavior-evaluation.md": "合成测试资料：非真实执行、非本产品验收、非用户批准。\n状态：合成值\n需求或门禁 ID：合成值\n方法或命令：合成值\ncwd：合成值\nHEAD / diff 或适用环境：合成值\n关键结果：合成值\n已通过：合成值\n警告：合成值\n未验证：合成值\n未知：合成值\n用户验收：合成值\n下一门禁：合成值\n",
+    "evaluation-surface-preflight.md": "合成测试资料：非真实执行、非本产品验收、非用户批准。\n状态：合成值\n需求或门禁 ID：合成值\n方法或命令：合成值\ncwd：合成值\nHEAD / diff 或适用环境：合成值\n关键结果：合成值\n已通过：合成值\n警告：合成值\n未验证：合成值\n未知：合成值\n用户验收：合成值\n下一门禁：合成值\n",
+    "user-acceptance.md": "合成测试资料：非真实执行、非本产品验收、非用户批准。\n状态：合成值\n需求或门禁 ID：合成值\n方法或命令：合成值\ncwd：合成值\nHEAD / diff 或适用环境：合成值\n关键结果：合成值\n已通过：合成值\n警告：合成值\n未验证：合成值\n未知：合成值\n用户验收：合成值\n下一门禁：合成值\n| 1 | 合成观察 | PASS |\n| 2 | 合成观察 | PASS |\n| 3 | 合成观察 | PASS |\n| 4 | 合成观察 | PASS |\n| 5 | 合成观察 | PASS |\n| 6 | 合成观察 | PASS |\n| 7 | 合成观察 | PASS |\n| 8 | 合成观察 | PASS |\n| 9 | 合成观察 | PASS |\n"
+  }
+}
