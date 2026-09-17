@@ -981,7 +981,7 @@ class ProgressRenderingTests(unittest.TestCase):
         headings = [
             "## 当前结论",
             "## 当前阶段与总体进度",
-            "## 已实现功能",
+            "## 用户可见能力与状态",
             "## 当前方案",
             "## 实现逻辑",
             "## 证据与未知",
@@ -994,6 +994,128 @@ class ProgressRenderingTests(unittest.TestCase):
         positions = [text.index(item) for item in headings]
         self.assertEqual(positions, sorted(positions))
         self.assertIn("WAITING\\_USER", text)
+
+    def test_first_section_explains_current_action_before_machine_evidence(self):
+        report = governance.build_progress_report(valid_progress_input())
+        text = governance.render_progress_markdown(report)
+        front = text.split("## 当前阶段与总体进度", 1)[0]
+        for expected in (
+            "完成已绑定目标并验证用户可见结果",
+            "技术前置条件已满足，正在等待所需用户操作或观察",
+            "执行一项引导式真人观察",
+            "选择当前方案的理由是：兼顾可验证性和真人体验。",
+            "观察一次代表场景",
+            "预期结果是：能看懂功能、问题和下一步",
+            "操作影响：只读，无外部动作",
+            "停止条件：任何结果不清楚就停止并记录 FAIL",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, front)
+        conclusion_paragraph = next(
+            paragraph for paragraph in front.split("\n\n")
+            if report["current_conclusion"] in paragraph
+        )
+        self.assertIn(report["selected_strategy"]["selection_reason"], conclusion_paragraph)
+        self.assertIn(report["next_step"], conclusion_paragraph)
+        for technical_value in (
+            "9" * 64,
+            "RETAINED\\_IN\\_OUTCOME\\_CONTRACT",
+            "WAITING\\_USER",
+            "原因代码",
+            "用户可见工作流属于 U2",
+        ):
+            with self.subTest(technical_value=technical_value):
+                self.assertNotIn(technical_value, front)
+
+    def test_summary_distinguishes_future_participation_from_current_action(self):
+        report = report_inventory_variants()[1]
+        report["user_participation"].update(
+            required=True,
+            reason="功能补齐后需要用户观察",
+            one_next_action="现在不用操作，先由主管补齐功能",
+            expected_result="功能验证后再提供观察步骤",
+        )
+        text = governance.render_progress_markdown(report)
+        front, details = text.split("## 当前阶段与总体进度", 1)
+        self.assertIn("用户目标尚未完成", front)
+        self.assertIn("现在不用操作，先由主管补齐功能", front)
+        self.assertNotIn("用户参与要求：需要", front)
+        self.assertIn("功能补齐后需要用户观察", details)
+
+    def test_summary_keeps_warnings_and_unknown_visible_before_details(self):
+        report = report_inventory_variants()[2]
+        text = governance.render_progress_markdown(report)
+        front = text.split("## 当前阶段与总体进度", 1)[0]
+        for field in ("warnings", "unknown"):
+            for item in report["verification"][field]:
+                with self.subTest(field=field, item=item):
+                    self.assertIn(governance._markdown_text(item), front)
+        self.assertIn("## 需要注意", front)
+        self.assertIn("## 尚不能确认", front)
+
+    def test_details_remain_readable_without_html_disclosure_support(self):
+        report = governance.build_progress_report(valid_progress_input())
+        report["selected_strategy"]["selection_reason"] = "说明含有 </details> 也只是文字"
+        before = governance.render_progress_json(report)
+        text = governance.render_progress_markdown(report)
+        self.assertNotIn("<details>", text)
+        self.assertNotIn("<summary>", text)
+        self.assertNotIn("</details>", text)
+        self.assertIn(r"\</details\>", text)
+        self.assertLess(text.index("## 你的参与"), text.index("## 当前阶段与总体进度"))
+        self.assertLess(text.index("## 当前阶段与总体进度"), text.index("## 技术附录"))
+        self.assertIn(report["verification"]["unverified"][0], text)
+        self.assertIn("```json\n", text)
+        self.assertEqual(governance.render_progress_json(report), before)
+
+    def test_report_documents_keep_summary_short_and_preserve_full_details(self):
+        self.assertTrue(callable(getattr(governance, "render_progress_documents", None)))
+        report = governance.build_progress_report(valid_progress_input())
+        before = governance.render_progress_json(report)
+        full = governance.render_progress_markdown(report)
+        documents = governance.render_progress_documents(report)
+        self.assertEqual(set(documents), {"progress.md", "progress-details.md"})
+        summary, details = documents["progress.md"], documents["progress-details.md"]
+        for expected in ("技术前置条件已满足", "兼顾可验证性和真人体验", "执行一项引导式真人观察", "## 你的参与", "真实安装尚未执行"):
+            self.assertIn(expected, summary)
+        self.assertNotIn("## 当前阶段与总体进度", summary)
+        self.assertNotIn("## 技术附录", summary)
+        self.assertNotIn("9" * 64, summary)
+        self.assertIn("[查看详细进度与依据](progress-details.md)", summary)
+        self.assertIn("[返回进度摘要](progress.md)", details)
+        full_summary, full_details = full.split("## 当前阶段与总体进度\n\n", 1)
+        self.assertTrue(summary.startswith(full_summary.rstrip()))
+        self.assertTrue(details.endswith("## 当前阶段与总体进度\n\n" + full_details))
+        self.assertNotIn("<details>", summary + details)
+        self.assertEqual(governance.render_progress_json(report), before)
+
+    def test_report_documents_keep_unknown_visible_and_reject_invalid_report(self):
+        self.assertTrue(callable(getattr(governance, "render_progress_documents", None)))
+        report = report_inventory_variants()[2]
+        documents = governance.render_progress_documents(report)
+        for field in ("warnings", "unknown"):
+            for item in report["verification"][field]:
+                self.assertIn(item, documents["progress.md"])
+        invalid = copy.deepcopy(report)
+        invalid["current_conclusion"] = "用户目标已完成并通过所需验收"
+        with self.assertRaises(governance.ProgressContractError):
+            governance.render_progress_documents(invalid)
+
+    def test_markdown_keeps_goal_and_completion_evidence_in_appendix(self):
+        report = governance.build_progress_report(valid_progress_input())
+        before = governance.render_progress_json(report)
+        text = governance.render_progress_markdown(report)
+        summary, appendix = text.split("## 技术附录", 1)
+        self.assertNotIn("9" * 64, summary)
+        self.assertIn("9" * 64, appendix)
+        self.assertIn("RETAINED\\_IN\\_OUTCOME\\_CONTRACT", appendix)
+        self.assertIn("WAITING\\_USER", appendix)
+        self.assertIn("原因代码", appendix)
+        for reason in report["completion_state"]["reason_codes"]:
+            self.assertIn(reason.replace("_", "\\_"), appendix)
+        technical_json = appendix.split("```json\n", 1)[1].split("\n```", 1)[0]
+        self.assertEqual(json.loads(technical_json), report["technical_appendix"])
+        self.assertEqual(governance.render_progress_json(report), before)
 
     def test_report_string_inventory_is_explicit_and_complete(self):
         observed = {

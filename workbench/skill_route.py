@@ -37,10 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.navigation and args.cwd is None:
         parser.error("--cwd is required for a route check")
     try:
-        try:
-            policy = load_policy(args.policy)
-        except UnicodeError as error:
-            raise ProtocolError("policy must be UTF-8") from error
+        policy = load_policy(args.policy)
         if args.navigation:
             print(render_stable_navigation(policy), end="")
             return 0
@@ -53,10 +50,7 @@ def main(argv: list[str] | None = None) -> int:
             if not separator or not name or name in pins:
                 raise ProtocolError("locator pin must be a unique ID=PATH")
             pins[name] = path
-        try:
-            response = read_response(args.input)
-        except UnicodeError as error:
-            raise ProtocolError("skills/list response must be UTF-8") from error
+        response = read_response(args.input)
         result = assess_skill_route(
             response, expected_cwd=args.cwd,
             target_ids=selection["target_ids"], required_ids=selection["required_ids"],

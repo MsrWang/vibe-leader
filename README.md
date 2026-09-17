@@ -1,5 +1,7 @@
 # Vibe Leader
 
+> **2.3.1 维护更新**：辅助报告提供简明首页和完整详情，源码工具改善异常输入处理。已有 2.3 Skill 用户无需为这批工具变化重装。变化及使用方式见[2.3.1 说明](docs/release-2.3.1.md)。
+
 **让 Codex 帮你把想法变成计划，按计划推进，最后检查做出来的东西是否能用。**
 
 Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill（可加载的工作说明）** 的形式提供。适合已经在用 Codex 做项目，希望把“做什么、做到哪了、接下来做什么”说清楚的人。
@@ -8,7 +10,7 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 
 **这页先帮你了解用途和使用方式。** 负责安装、升级或维护的人，请看[安装与使用指南（技术向）](docs/getting-started.md)。
 
-[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [下载 2.3](https://github.com/MsrWang/vibe-leader/releases/tag/v2.3.0) · [安装与使用指南](docs/getting-started.md) · [已知限制](docs/limitations.md)
+[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [下载 2.3.1](https://github.com/MsrWang/vibe-leader/releases/tag/v2.3.1) · [安装与使用指南](docs/getting-started.md) · [已知限制](docs/limitations.md)
 
 ## 快速开始
 
@@ -18,7 +20,7 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 
 ### 2. 获取并安装
 
-从 [2.3 下载页](https://github.com/MsrWang/vibe-leader/releases/tag/v2.3.0)取得完整源码 ZIP，保留包内文件，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成安装。安装后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
+从 [2.3.1 下载页](https://github.com/MsrWang/vibe-leader/releases/tag/v2.3.1)取得完整源码 ZIP，保留包内文件，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成安装。安装后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
 
 **已验证环境：Windows Codex Desktop 配合 Ubuntu/WSL。** 安装所需的 Python、Git、目录确认，以及已有版本的升级步骤，都在技术指南中说明；其他环境需先核对兼容性。
 

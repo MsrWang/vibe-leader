@@ -1222,22 +1222,38 @@ def render_progress_markdown(value: object) -> str:
         for item in alternatives
     ]
     participation_state = "需要" if participation["required"] else "暂不需要"
-    return "\n\n".join(
+
+    def sentence(value: object) -> str:
+        text = _markdown_text(value).rstrip()
+        return text if text.endswith(("。", "！", "？", ".", "!", "?")) else text + "。"
+
+    summary = (
+        "## 当前结论\n\n"
+        f"本次目标：{_markdown_text(goal_display['safe_summary'])}\n\n"
+        f"{sentence(report['current_conclusion'])}"
+        f"选择当前方案的理由是：{sentence(selected['selection_reason'])}"
+        f"接下来的重点是：{sentence(report['next_step'])}\n\n"
+        "## 你的参与\n\n"
+        f"{sentence(participation['one_next_action'])}"
+    )
+    if participation["required"]:
+        summary += (
+            f"预期结果是：{sentence(participation['expected_result'])}\n\n"
+            f"操作影响：{sentence(participation['side_effects'])}"
+            f"停止条件：{sentence(participation['failure_stop'])}"
+        )
+    sections = ["# 中文研发主管进度卡", summary]
+    for field, heading in (("warnings", "需要注意"), ("unknown", "尚不能确认")):
+        if verification[field]:
+            sections.append(f"## {heading}\n\n{_bullets(verification[field])}")
+    sections.extend(
         (
-            "# 中文研发主管进度卡",
-            "## 当前结论\n\n"
-            f"目标摘要：{_markdown_text(goal_display['safe_summary'])}\n\n"
-            f"原始目标绑定：{_markdown_text(goal_display['original_goal_sha256'])}\n\n"
-            f"原文状态：{_markdown_text(goal_display['original_text_state'])}\n\n"
-            f"结构化状态：{_markdown_text(completion['task_state'])}\n\n"
-            f"当前结论：{_markdown_text(report['current_conclusion'])}\n\n"
-            f"原因代码：{', '.join(_markdown_text(item) for item in completion['reason_codes'])}",
             "## 当前阶段与总体进度\n\n"
             f"当前阶段：{_markdown_text(report['current_phase'])}\n\n"
             f"已完成：\n{_bullets(milestones['completed'])}\n\n"
             f"正在进行：\n{_bullets(milestones['current'])}\n\n"
             f"剩余：\n{_bullets(milestones['remaining'])}",
-            f"## 已实现功能\n\n{_bullets(capability_lines)}",
+            f"## 用户可见能力与状态\n\n{_bullets(capability_lines)}",
             "## 当前方案\n\n"
             f"方案：{_markdown_text(selected['mechanism'])}\n\n"
             f"选择原因：{_markdown_text(selected['selection_reason'])}",
@@ -1261,8 +1277,32 @@ def render_progress_markdown(value: object) -> str:
             "## 下一步\n\n"
             f"{_markdown_text(report['next_step'])}\n\n"
             f"停止条件：\n{_bullets(report['stop_conditions'])}",
-            "## 技术附录\n\n```json\n"
+            "## 技术附录\n\n"
+            f"原始目标绑定：{_markdown_text(goal_display['original_goal_sha256'])}\n\n"
+            f"原文状态：{_markdown_text(goal_display['original_text_state'])}\n\n"
+            f"结构化状态：{_markdown_text(completion['task_state'])}\n\n"
+            f"原因代码：{', '.join(_markdown_text(item) for item in completion['reason_codes'])}\n\n"
+            "```json\n"
             + json.dumps(technical, ensure_ascii=False, sort_keys=True, indent=2)
             + "\n```",
         )
-    ) + "\n"
+    )
+    return "\n\n".join(sections) + "\n"
+
+
+def render_progress_documents(value: object) -> dict[str, str]:
+    """Return a short reading page and linked full details, without writing files."""
+    full = render_progress_markdown(value)
+    heading = "## 当前阶段与总体进度\n\n"
+    summary, details = full.split(heading, 1)
+    return {
+        "progress.md": (
+            summary.rstrip()
+            + "\n\n[查看详细进度与依据](progress-details.md)\n"
+        ),
+        "progress-details.md": (
+            "# 详细进度与依据\n\n"
+            "[返回进度摘要](progress.md)\n\n"
+            + heading + details
+        ),
+    }

@@ -341,6 +341,8 @@ def load_policy(path: Path) -> dict[str, Any]:
     try:
         with path.open("rb") as handle:
             policy = tomllib.load(handle)
+    except UnicodeError as error:
+        raise ProtocolError("policy must be UTF-8") from error
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise ProtocolError("unable to read policy") from error
     if policy.get("schema_version") != SCHEMA_VERSION:
@@ -353,6 +355,8 @@ def load_policy(path: Path) -> dict[str, Any]:
 def read_response(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
+    except UnicodeError as error:
+        raise ProtocolError("skills/list response must be UTF-8") from error
     except (OSError, json.JSONDecodeError) as error:
         raise ProtocolError("unable to read skills/list response") from error
     if not isinstance(value, dict):
