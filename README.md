@@ -1,5 +1,10 @@
 # Vibe Leader
 
+> **3.0 有限范围：把项目接续与维护用法说明清楚**
+> 本版本沿用 2.3.1 的程序和 Skill，加入继续项目、质量检查、Skill 维护及变更影响的[日常使用入口](docs/project-workflow.md)。没有新增或自动生效的 Skill 规则；已有 2.3.1 Skill 的用户阅读这些说明无需重新安装。
+> 已有证据覆盖本项目一次实际接续、一次程序问题修复和一次保留规则的维护检查。新规则修订、复杂数据或环境变化仍需对应验证；本版本不承诺这些场景已通过。[查看 3.0 范围与限制](docs/release-3.0.md)。
+
+
 > **2.3.1 维护更新**：辅助报告提供简明首页和完整详情，源码工具改善异常输入处理。已有 2.3 Skill 用户无需为这批工具变化重装。变化及使用方式见[2.3.1 说明](docs/release-2.3.1.md)。
 
 **让 Codex 帮你把想法变成计划，按计划推进，最后检查做出来的东西是否能用。**
@@ -10,7 +15,7 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 
 **这页先帮你了解用途和使用方式。** 负责安装、升级或维护的人，请看[安装与使用指南（技术向）](docs/getting-started.md)。
 
-[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [下载 2.3.1](https://github.com/MsrWang/vibe-leader/releases/tag/v2.3.1) · [安装与使用指南](docs/getting-started.md) · [已知限制](docs/limitations.md)
+[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [查看版本下载页](https://github.com/MsrWang/vibe-leader/releases) · [3.0 范围与限制](docs/release-3.0.md) · [安装与使用指南](docs/getting-started.md)
 
 ## 快速开始
 
@@ -20,7 +25,7 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 
 ### 2. 获取并安装
 
-从 [2.3.1 下载页](https://github.com/MsrWang/vibe-leader/releases/tag/v2.3.1)取得完整源码 ZIP，保留包内文件，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成安装。安装后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
+从[版本下载页](https://github.com/MsrWang/vibe-leader/releases)选择所需版本的完整源码 ZIP，保留包内文件，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成安装。3.0 沿用 2.3.1 的 Skill 内容；已有正确安装的用户无需为了新增说明重装。首次安装后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
 
 **已验证环境：Windows Codex Desktop 配合 Ubuntu/WSL。** 安装所需的 Python、Git、目录确认，以及已有版本的升级步骤，都在技术指南中说明；其他环境需先核对兼容性。
 
@@ -77,7 +82,7 @@ demo/                       HF 静态使用示例
 
 ## 验证与限制
 
-2.3 已完成独立源码交付及限定环境的用户接受；真实安装、代表任务、暂停/只读恢复、两项目绑定、停用/启用及旧版恢复有各自范围证据。详细结论和保留警告见[2.3 验证说明](docs/release-2.3.md)。
+2.3 已完成独立源码交付及限定环境的用户接受；真实安装、代表任务、暂停/只读恢复、两项目绑定、停用/启用及旧版恢复有各自范围证据。详细结论和保留警告见[2.3 验证说明](docs/release-2.3.md)。3.0 新增用法的证据范围和未覆盖场景见[3.0 说明](docs/release-3.0.md)。
 
 这套方法提供工作规则，**不能隔离文件或代替权限设置**，模型仍可能偏离规则。Codex 使用的模型服务可能接收项目上下文；在本地操作不等于离线。具体兼容性、安装与数据边界见[已知限制](docs/limitations.md)。
 
