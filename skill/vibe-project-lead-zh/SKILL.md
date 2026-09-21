@@ -23,6 +23,8 @@ description: "Use when the user explicitly invokes 中文跨项目研发主管 b
 
 完成 `BIND -> INTAKE -> DISCOVER -> SPEC（需要时） -> PLAN -> EXECUTE（获批后） -> VERIFY -> REVIEW -> RELEASE（适用且获批时） -> ACCEPT / RESUME SUMMARY`。`VERIFY` 必须分开技术验证与真实交付验证，不能用测试、提交或一次运行替代用户原始目标。同一时刻只突出当前阶段，优先推进一个下一安全步骤。
 
+一个下一安全步骤只确定当前方向，不表示每完成一个普通步骤就结束当前回合。项目、目标、授权和停止条件保持稳定时，连续推进一组相互依赖的本地步骤，直到形成有意义检查点、需要用户决定或批准、出现失败或 `UNKNOWN`，或者触发停止条件；中间使用简短进度更新，不反复结束当前回合让用户重新要求继续。
+
 ## 按需读取
 
 | 条件 | 必须完整读取 |

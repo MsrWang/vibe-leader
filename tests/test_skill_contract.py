@@ -249,6 +249,62 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("未显式进入时，不改变普通 Codex Coding 工作流", text)
         self.assertLessEqual(len(text.splitlines()), 500)
 
+    def test_main_loop_continues_stable_work_until_meaningful_checkpoint(self):
+        text = read("SKILL.md")
+        section = text.split("## 主循环\n", 1)[1].split("\n## ", 1)[0]
+
+        self.assert_contains_all(
+            section,
+            (
+                "不表示每完成一个普通步骤就结束当前回合",
+                "连续推进一组相互依赖的本地步骤",
+                "不反复结束当前回合让用户重新要求继续",
+            ),
+        )
+
+        workflow = (ROOT / "docs/project-workflow.md").read_text(encoding="utf-8")
+        self.assert_contains_all(
+            workflow,
+            (
+                "连续推进到一个有意义的检查点",
+                "不需要我每隔几分钟重新说一次“继续”",
+                "当前任务仍继续推进",
+                "不是当前工作的前置条件",
+                "不要求为了测试中断",
+            ),
+        )
+
+    def test_maintenance_guide_separates_rule_revision_install_and_behavior_evidence(self):
+        text = (ROOT / "docs/maintenance-and-change.md").read_text(encoding="utf-8")
+
+        self.assert_contains_all(
+            text,
+            (
+                "最初先把它记录为执行与计划接续遗漏",
+                "用户随后又明确反馈",
+                "最小规则修订",
+                "实际安装已经完成",
+                "当前窗口是否重新加载新版仍未验证",
+                "当前任务继续推进",
+            ),
+        )
+
+    def test_change_impact_guide_covers_complex_rule_upgrade(self):
+        text = (ROOT / "docs/maintenance-and-change.md").read_text(encoding="utf-8")
+
+        self.assert_contains_all(
+            text,
+            (
+                "复杂应用：连续推进规则与实际安装",
+                "变化后的用户结果",
+                "受影响能力与依赖",
+                "仍适用的旧证据",
+                "必须补验的部分",
+                "旧五次对话观察",
+                "不需要重新安装",
+            ),
+        )
+
     def test_openai_metadata_is_chinese_and_explicit_only(self):
         text = read("agents/openai.yaml")
 
