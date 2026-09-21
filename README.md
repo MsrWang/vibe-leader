@@ -14,13 +14,13 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 
 **这页先帮你了解用途和使用方式。** 负责安装、升级或维护的人，请看[安装与使用指南（技术向）](docs/getting-started.md)。
 
-[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [查看版本下载页](https://github.com/MsrWang/vibe-leader/releases) · [3.0 范围与限制](docs/release-3.0.md) · [安装与使用指南](docs/getting-started.md)
+[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [查看版本下载页](https://github.com/MsrWang/vibe-leader/releases) · [3.0.1 变化与限制](docs/release-3.0.1.md) · [安装与使用指南](docs/getting-started.md)
 
 ## 快速开始
 
 ### 1. 先看看怎么用
 
-打开 [HF 在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader)，选择一个场景，看看可以怎么提需求、Codex 应怎样处理。无需安装即可浏览；页面展示预先编写的示例，实际任务仍要在你自己的 Codex 中完成。
+打开 [HF 在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader)，选择一个场景，看看可以怎么提需求、Codex 应怎样处理。页面已按 3.0.1 更新，仍只展示预先编写的合成示例；无需安装即可浏览，实际任务要在你自己的 Codex 中完成。
 
 ### 2. 获取并安装
 

@@ -12,7 +12,7 @@ short_description: Codex 中文研发主管 Skill 的合成使用示例与调用
 
 # Vibe Leader — Codex Skill 使用示例
 
-本 Space 展示 Vibe Leader 2.3 在 Codex 项目任务中的预期工作方式。Vibe Leader 是可安装的中文研发主管 Skill，技术标识为 `vibe-project-lead-zh`。
+本 Space 展示 Vibe Leader 3.0.1 在 Codex 项目任务中的预期工作方式。Vibe Leader 是可安装的中文研发主管 Skill，技术标识为 `vibe-project-lead-zh`。3.0.1 明确：项目、目标、授权和停止条件稳定时，同一检查点内的相关本地步骤应连续推进。
 
 ## 如何查看
 
@@ -24,13 +24,13 @@ short_description: Codex 中文研发主管 Skill 的合成使用示例与调用
 
 ## 在 Codex 中使用
 
-从 Vibe Leader 的 GitHub 仓库取得完整源码，按入门指南核对宿主与安装目录。安装并启用“中文跨项目研发主管”后，在实际项目任务中显式调用：
+从 Vibe Leader 的 GitHub 仓库取得完整源码，按入门指南核对宿主与安装目录。3.0.1 修改了 Skill 主循环；使用 3.0.0 或更早版本时，需要按受控升级步骤更新实际安装。安装或升级并确认“中文跨项目研发主管”已启用后，在实际项目任务中显式调用：
 
 ```text
 使用 $vibe-project-lead-zh。先绑定当前项目，只读调查后告诉我目标、风险和最小下一步，暂不修改。
 ```
 
-已验证 Windows Codex Desktop 配合 Ubuntu/WSL；其他宿主和版本需另验。Skill 不是 OS 沙箱，模型可能偏离流程。源码入口以维护者的实际首发记录为准。
+已验证 Windows Codex Desktop 配合 Ubuntu/WSL；其他宿主和版本需另验。Skill 不是 OS 沙箱，模型可能偏离流程。静态案例说明预期规则，不证明新任务已经加载 3.0.1，也不证明长期行为。版本与源码以 [GitHub Releases](https://github.com/MsrWang/vibe-leader/releases) 为准。
 
 ## 数据与运行边界
 
