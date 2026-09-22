@@ -274,6 +274,66 @@ class SkillContractTests(unittest.TestCase):
             ),
         )
 
+    def test_lightweight_deviation_card_is_discoverable_and_low_noise(self):
+        workflow = (ROOT / "docs/project-workflow.md").read_text(encoding="utf-8")
+        card_path = ROOT / "docs/deviation-correction.md"
+
+        self.assertTrue(card_path.is_file(), "deviation correction card is missing")
+        self.assert_contains_all(
+            workflow,
+            (
+                "感觉当前推进有偏差",
+                "纠偏判断",
+                "不需要先说清技术原因",
+                "deviation-correction.md",
+            ),
+        )
+        self.assert_contains_all(
+            card_path.read_text(encoding="utf-8"),
+            (
+                "默认只显示三行",
+                "最小修正",
+                "现在继续",
+                "没有新证据时不重复",
+                "不会产生新的授权",
+            ),
+        )
+
+    def test_main_loop_routes_lightweight_deviation_correction(self):
+        skill = read("SKILL.md")
+        workflow = read("references/manager-workflow.md")
+        marker = "## 轻量纠偏\n"
+        self.assertEqual(workflow.count(marker), 1, "missing/ambiguous 轻量纠偏")
+        correction = workflow.split(marker, 1)[1].split("\n## ", 1)[0]
+
+        self.assert_contains_all(
+            skill,
+            (
+                "方向、范围或目标可能偏离",
+                "停止扩大范围",
+                "轻量纠偏",
+                "最小修正后继续推进",
+            ),
+        )
+        self.assert_contains_all(
+            correction,
+            (
+                "不绑定固定关键词",
+                "必要中间步骤",
+                "执行偏差",
+                "范围偏差",
+                "局部占据主线",
+                "用户目标改变",
+                "暂无偏差证据",
+                "证据不足",
+                "默认只显示三行",
+                "没有新证据时不重复",
+                "不要求用户再次说明",
+                "继续原已授权行动",
+                "不产生新的授权",
+            ),
+        )
+
     def test_maintenance_guide_separates_rule_revision_install_and_behavior_evidence(self):
         text = (ROOT / "docs/maintenance-and-change.md").read_text(encoding="utf-8")
 
@@ -304,6 +364,84 @@ class SkillContractTests(unittest.TestCase):
                 "不需要重新安装",
             ),
         )
+
+    def test_3_0_2_public_materials_explain_lightweight_correction(self):
+        release_path = ROOT / "docs/release-3.0.2.md"
+        self.assertTrue(release_path.is_file(), "3.0.2 release note is missing")
+
+        release = release_path.read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        getting_started = (ROOT / "docs/getting-started.md").read_text(encoding="utf-8")
+        maintenance = (ROOT / "docs/maintenance-and-change.md").read_text(encoding="utf-8")
+        demo_readme = (ROOT / "demo/README.md").read_text(encoding="utf-8")
+        demo_html = (ROOT / "demo/index.html").read_text(encoding="utf-8")
+        demo_js = (ROOT / "demo/app.js").read_text(encoding="utf-8")
+
+        for filename, text in (
+            ("README.md", readme),
+            ("CHANGELOG.md", changelog),
+            ("getting-started.md", getting_started),
+            ("maintenance-and-change.md", maintenance),
+            ("demo/README.md", demo_readme),
+            ("demo/index.html", demo_html),
+        ):
+            with self.subTest(filename=filename):
+                self.assertIn("3.0.2", text)
+
+        self.assert_contains_all(
+            release,
+            (
+                "默认只显示三行",
+                "纠偏判断",
+                "最小修正",
+                "现在继续",
+                "不产生新的授权",
+                "六个合成情境",
+                "实际安装",
+                "重新加载",
+                "长期自然项目",
+            ),
+        )
+        self.assert_contains_all(
+            readme,
+            (
+                "docs/release-3.0.2.md",
+                "docs/deviation-correction.md",
+                "不需要先说清技术原因",
+            ),
+        )
+        self.assert_contains_all(
+            getting_started,
+            (
+                "3.0.1 或更早安装",
+                "受控升级",
+                "安装成功、宿主重新加载和实际行为",
+            ),
+        )
+        self.assert_contains_all(
+            maintenance,
+            (
+                "轻量自动纠偏",
+                "行为基线",
+                "重复信号",
+                "原已授权行动",
+            ),
+        )
+        self.assertIn('<option value="deviation">感觉项目跑偏</option>', demo_html)
+        self.assert_contains_all(
+            demo_js,
+            (
+                "deviation:",
+                "我感觉当前推进有偏差",
+                "纠偏判断",
+                "最小修正",
+                "现在继续",
+            ),
+        )
+        for forbidden in ("fetch(", "XMLHttpRequest", "<form", "analytics"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, demo_html + demo_js)
 
     def test_openai_metadata_is_chinese_and_explicit_only(self):
         text = read("agents/openai.yaml")

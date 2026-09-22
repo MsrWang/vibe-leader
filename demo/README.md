@@ -12,11 +12,11 @@ short_description: Codex 中文研发主管 Skill 的合成使用示例与调用
 
 # Vibe Leader — Codex Skill 使用示例
 
-本 Space 展示 Vibe Leader 3.0.1 在 Codex 项目任务中的预期工作方式。Vibe Leader 是可安装的中文研发主管 Skill，技术标识为 `vibe-project-lead-zh`。3.0.1 明确：项目、目标、授权和停止条件稳定时，同一检查点内的相关本地步骤应连续推进。
+本 Space 展示 Vibe Leader 3.0.2 在 Codex 项目任务中的预期工作方式。Vibe Leader 是可安装的中文研发主管 Skill，技术标识为 `vibe-project-lead-zh`。3.0.2 增加轻量纠偏：用户只需表达“感觉当前推进有偏差”，主管默认用三行说明最小修正，并在已有授权内继续。
 
 ## 如何查看
 
-1. 在 App 中选择“新项目启动”“错误项目处理”或“验收交付”。
+1. 在 App 中选择“新项目启动”“感觉项目跑偏”“错误项目处理”或“验收交付”。
 2. 阅读示例提示词、预期处理和需要用户确认的下一步。
 3. 使用“复制提示词”，在自己的 Codex 项目中按实际目标调整后发送。
 
@@ -24,13 +24,13 @@ short_description: Codex 中文研发主管 Skill 的合成使用示例与调用
 
 ## 在 Codex 中使用
 
-从 Vibe Leader 的 GitHub 仓库取得完整源码，按入门指南核对宿主与安装目录。3.0.1 修改了 Skill 主循环；使用 3.0.0 或更早版本时，需要按受控升级步骤更新实际安装。安装或升级并确认“中文跨项目研发主管”已启用后，在实际项目任务中显式调用：
+从 Vibe Leader 的 GitHub 仓库取得完整源码，按入门指南核对宿主与安装目录。3.0.2 修改了 Skill 的纠偏工作流；使用 3.0.1 或更早版本时，需要按受控升级步骤更新实际安装。安装或升级并确认“中文跨项目研发主管”已启用后，在实际项目任务中显式调用：
 
 ```text
 使用 $vibe-project-lead-zh。先绑定当前项目，只读调查后告诉我目标、风险和最小下一步，暂不修改。
 ```
 
-已验证 Windows Codex Desktop 配合 Ubuntu/WSL；其他宿主和版本需另验。Skill 不是 OS 沙箱，模型可能偏离流程。静态案例说明预期规则，不证明新任务已经加载 3.0.1，也不证明长期行为。版本与源码以 [GitHub Releases](https://github.com/MsrWang/vibe-leader/releases) 为准。
+已验证 Windows Codex Desktop 配合 Ubuntu/WSL；其他宿主和版本需另验。Skill 不是 OS 沙箱，模型可能偏离流程。静态案例说明预期规则，不证明新任务已经加载 3.0.2，也不证明长期行为。版本与源码以 [GitHub Releases](https://github.com/MsrWang/vibe-leader/releases) 为准。
 
 ## 数据与运行边界
 
