@@ -71,6 +71,7 @@ EXPECTED_RUNTIME_ENTRIES = {
     "agents/openai.yaml": "file",
     "references": "directory",
     "references/project-binding.md": "file",
+    "references/evidence-screening.md": "file",
     "references/manager-workflow.md": "file",
     "references/safety-gates.md": "file",
     "references/acceptance-and-supervision.md": "file",
@@ -79,6 +80,8 @@ EXPECTED_RUNTIME_ENTRIES = {
     "references/deployment-governance.md": "file",
     "references/human-delivery.md": "file",
     "references/SKILL_INDEX_ZH.md": "file",
+    "scripts": "directory",
+    "scripts/evidence_filter.py": "file",
 }
 RECOVERY_ROOT_NAME = ".skill-rollbacks"
 RECOVERY_PREPARED_MANIFEST_NAME = "staging-recovery-prepared.json"

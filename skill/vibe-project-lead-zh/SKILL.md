@@ -32,6 +32,7 @@ description: "Use when the user explicitly invokes 中文跨项目研发主管 b
 | 条件 | 必须完整读取 |
 |---|---|
 | 首次进入、恢复、写入前或项目身份变化 | [项目绑定](references/project-binding.md) |
+| 大文件、多文件或长日志调查需要缩减无关证据 | [本地证据筛选](references/evidence-screening.md) |
 | 需求转换、规格、计划、专业推荐、教学或选择其他 Skill | [主管工作流](references/manager-workflow.md) |
 | 任务可能使用额外模型、临时 Agent、独立 review、并行调查或隔离写入 | [自适应委派](references/adaptive-delegation.md)；安全 reference 仍同时适用 |
 | 项目写入、额外模型、账号、网络、云、删除、迁移、公开或模糊授权 | [安全与审批](references/safety-gates.md) |

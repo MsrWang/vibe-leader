@@ -304,10 +304,10 @@ class RecoveryAnchorContractTests(SyntheticRecoveryFixture, unittest.TestCase):
         read_root.assert_not_called()
         self.assertEqual(self.snapshot_tree(self.codex_home), before)
 
-    def test_source_layout_is_not_tied_to_current_eleven_file_package(self):
+    def test_source_layout_is_not_tied_to_current_thirteen_file_package(self):
         # A second, independent synthetic seven-file source has its own binding.
         self.assertEqual(len(self.anchors["file_anchors"]), 7)
-        self.assertEqual(sum(v == "file" for v in INSTALLER.EXPECTED_RUNTIME_ENTRIES.values()), 11)
+        self.assertEqual(sum(v == "file" for v in INSTALLER.EXPECTED_RUNTIME_ENTRIES.values()), 13)
         request = self.build_request()
         self.assertEqual(len(request["stage_entries"]), 9)
 

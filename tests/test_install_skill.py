@@ -28,6 +28,7 @@ EXPECTED_RUNTIME_FILES = {
     "SKILL.md",
     "agents/openai.yaml",
     "references/project-binding.md",
+    "references/evidence-screening.md",
     "references/manager-workflow.md",
     "references/safety-gates.md",
     "references/acceptance-and-supervision.md",
@@ -36,6 +37,7 @@ EXPECTED_RUNTIME_FILES = {
     "references/deployment-governance.md",
     "references/human-delivery.md",
     "references/SKILL_INDEX_ZH.md",
+    "scripts/evidence_filter.py",
 }
 
 SPEC = importlib.util.spec_from_file_location("install_skill", SCRIPT)
@@ -291,6 +293,7 @@ class InstallSkillTests(unittest.TestCase):
         self.source = self.tempdir / "source" / SKILL_NAME
         (self.source / "agents").mkdir(parents=True)
         (self.source / "references").mkdir()
+        (self.source / "scripts").mkdir()
         (self.source / "SKILL.md").write_text(
             "---\nname: vibe-project-lead-zh\ndescription: test\n---\n",
             encoding="utf-8",
@@ -308,12 +311,17 @@ class InstallSkillTests(unittest.TestCase):
             "portfolio.md",
             "deployment-governance.md",
             "human-delivery.md",
+            "evidence-screening.md",
             "SKILL_INDEX_ZH.md",
         ):
             (self.source / "references" / filename).write_text(
                 f"# {filename}\n",
                 encoding="utf-8",
             )
+        (self.source / "scripts" / "evidence_filter.py").write_text(
+            "# fixture\n",
+            encoding="utf-8",
+        )
         actual_files = {
             path.relative_to(self.source).as_posix()
             for path in self.source.rglob("*")
@@ -990,7 +998,7 @@ class InstallSkillTests(unittest.TestCase):
         installed = self.run_cli("install", "--source", repository_source,
                                  "--skills-root", self.skills_root)
         self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
-        self.assertEqual(json.loads(installed.stdout)["files"], 11)
+        self.assertEqual(json.loads(installed.stdout)["files"], 13)
         verified = self.verify()
         self.assertEqual(verified.returncode, 0, verified.stdout + verified.stderr)
         current_manifest = self.manifest_payload()
@@ -5937,6 +5945,7 @@ class TargetObservedInstallTests(unittest.TestCase):
         self.source = self.tempdir / "source" / SKILL_NAME
         (self.source / "agents").mkdir(parents=True)
         (self.source / "references").mkdir()
+        (self.source / "scripts").mkdir()
         (self.source / "SKILL.md").write_text(
             "---\nname: vibe-project-lead-zh\ndescription: test\n---\n",
             encoding="utf-8",
@@ -5954,15 +5963,21 @@ class TargetObservedInstallTests(unittest.TestCase):
             "portfolio.md",
             "deployment-governance.md",
             "human-delivery.md",
+            "evidence-screening.md",
             "SKILL_INDEX_ZH.md",
         ):
             (self.source / "references" / filename).write_text(
                 f"# {filename}\n",
                 encoding="utf-8",
             )
+        (self.source / "scripts" / "evidence_filter.py").write_text(
+            "# fixture\n",
+            encoding="utf-8",
+        )
         self.source.chmod(0o755)
         (self.source / "agents").chmod(0o755)
         (self.source / "references").chmod(0o755)
+        (self.source / "scripts").chmod(0o755)
         for child in self.source.rglob("*"):
             if child.is_file():
                 child.chmod(0o600 if child.name == "SKILL_INDEX_ZH.md" else 0o644)

@@ -1,5 +1,9 @@
 # Vibe Leader
 
+> **3.0.3 维护更新：大文件、多文件和长日志先做本地证据筛选**
+> 可安装 Skill 现在包含 13 个文件。证据筛选器仅在调查材料较大且被显式调用时运行，先做本地相关性排序，再从未变化的源文件精确回读；小范围调查可直接绕过。
+> 随包实现不调用 Jev API、不读取凭据、不选择模型或 Agent，也不判断任务是否完成。聚焦检查、完整回归、限定环境安装和新任务重新加载分别核对；长期自然任务仍需观察。[查看 3.0.3 变化与限制](docs/release-3.0.3.md)。
+
 > **3.0.2 维护更新：感觉跑偏时，先做最小纠偏再继续**
 > 你不需要先说清技术原因。主管会对照整体目标、当前行动和直接证据，默认只给出“纠偏判断、最小修正、现在继续”三行；修正仍在已有授权内时直接接回主线。
 > 纠偏不会产生新的安装、发布、账号或跨项目权限。候选、合成行为对照和限定环境的实际安装已有对应证据；宿主重新加载及长期自然表现仍需实际观察。[查看 3.0.2 变化与限制](docs/release-3.0.2.md)。
@@ -18,17 +22,17 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 
 **这页先帮你了解用途和使用方式。** 负责安装、升级或维护的人，请看[安装与使用指南（技术向）](docs/getting-started.md)。
 
-[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [查看版本下载页](https://github.com/MsrWang/vibe-leader/releases) · [3.0.2 变化与限制](docs/release-3.0.2.md) · [安装与使用指南](docs/getting-started.md)
+[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [查看版本下载页](https://github.com/MsrWang/vibe-leader/releases) · [3.0.3 变化与限制](docs/release-3.0.3.md) · [安装与使用指南](docs/getting-started.md)
 
 ## 快速开始
 
 ### 1. 先看看怎么用
 
-打开 [HF 在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader)，选择一个场景，看看可以怎么提需求、Codex 应怎样处理。页面已按 3.0.2 增加“感觉项目跑偏”案例，仍只展示预先编写的合成示例；无需安装即可浏览，实际任务要在你自己的 Codex 中完成。
+打开 [HF 在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader)，选择一个场景，看看可以怎么提需求、Codex 应怎样处理。页面按 3.0.3 标明当前版本，仍保留四个预先编写的合成示例；本地证据筛选器不会在静态页面中运行。无需安装即可浏览，实际任务要在你自己的 Codex 中完成。
 
 ### 2. 获取并安装
 
-从[版本下载页](https://github.com/MsrWang/vibe-leader/releases)选择所需版本的完整源码 ZIP，保留包内文件，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成安装。3.0.2 修改了 Skill 的纠偏工作流；从 3.0.1 或更早版本获得这项行为需要按受控升级流程更新实际安装。首次安装或升级后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
+从[版本下载页](https://github.com/MsrWang/vibe-leader/releases)选择所需版本的完整源码 ZIP，保留包内文件，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成安装。3.0.3 增加可选的本地证据筛选器；3.0.2 或更早安装需要按受控升级流程更新实际安装才能获得这两个新文件。首次安装或升级后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
 
 **已验证环境：Windows Codex Desktop 配合 Ubuntu/WSL。** 安装所需的 Python、Git、目录确认，以及已有版本的升级步骤，都在技术指南中说明；其他环境需先核对兼容性。
 
@@ -73,7 +77,7 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 <summary>开发者可展开查看目录与工具分工</summary>
 
 ```text
-skill/vibe-project-lead-zh/   可安装的 Skill，11 个文件
+skill/vibe-project-lead-zh/   可安装的 Skill，13 个文件；含可选本地证据筛选器
 scripts/                    安装、核验、升级与恢复入口
 workbench/                  显式运行的治理校验工具
 tests/                      确定性测试与合成案例
@@ -82,12 +86,13 @@ demo/                       HF 静态使用示例
 ```
 
 普通使用先完成 Skill 安装和显式调用。`workbench/` 是高级源码工具，不会因 Skill 被安装就自动执行，也不要求首次使用者接通评测系统。
+本地证据筛选器随 Skill 一起安装，但只在大文件、多文件或长日志调查中被显式调用；它只做本机相关性排序，没有 Jev API 或后台服务。
 
 </details>
 
 ## 验证与限制
 
-2.3 已完成独立源码交付及限定环境的用户接受；真实安装、代表任务、暂停/只读恢复、两项目绑定、停用/启用及旧版恢复有各自范围证据。详细结论和保留警告见[2.3 验证说明](docs/release-2.3.md)。3.0.0 新增用法的范围见[3.0.0 说明](docs/release-3.0.md)；连续推进规则见[3.0.1 说明](docs/release-3.0.1.md)；轻量纠偏的证据与未覆盖场景见[3.0.2 说明](docs/release-3.0.2.md)。
+2.3 已完成独立源码交付及限定环境的用户接受；真实安装、代表任务、暂停/只读恢复、两项目绑定、停用/启用及旧版恢复有各自范围证据。详细结论和保留警告见[2.3 验证说明](docs/release-2.3.md)。3.0.0 新增用法的范围见[3.0.0 说明](docs/release-3.0.md)；连续推进规则见[3.0.1 说明](docs/release-3.0.1.md)；轻量纠偏的证据与未覆盖场景见[3.0.2 说明](docs/release-3.0.2.md)；本地证据筛选的范围见[3.0.3 说明](docs/release-3.0.3.md)。
 
 这套方法提供工作规则，**不能隔离文件或代替权限设置**，模型仍可能偏离规则。Codex 使用的模型服务可能接收项目上下文；在本地操作不等于离线。具体兼容性、安装与数据边界见[已知限制](docs/limitations.md)。
 

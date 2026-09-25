@@ -19,6 +19,7 @@ EXPECTED_FILES = {
     "SKILL.md",
     "agents/openai.yaml",
     "references/project-binding.md",
+    "references/evidence-screening.md",
     "references/manager-workflow.md",
     "references/safety-gates.md",
     "references/acceptance-and-supervision.md",
@@ -27,6 +28,7 @@ EXPECTED_FILES = {
     "references/deployment-governance.md",
     "references/human-delivery.md",
     "references/SKILL_INDEX_ZH.md",
+    "scripts/evidence_filter.py",
 }
 EXPECTED_OPENAI_YAML_SHA256 = (
     "8b8238c65872c43858611a60399aff4009569feb4c934eb88ce1bb38f7712d71"
@@ -231,7 +233,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertTrue(path.is_file(), "adaptive delegation reference is missing")
         return path.read_text(encoding="utf-8")
 
-    def test_runtime_package_has_exact_approved_eleven_files(self):
+    def test_runtime_package_has_exact_approved_thirteen_files(self):
         actual = {
             path.relative_to(SKILL_ROOT).as_posix()
             for path in SKILL_ROOT.rglob("*")
@@ -443,6 +445,83 @@ class SkillContractTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, demo_html + demo_js)
 
+    def test_3_0_3_public_materials_explain_local_evidence_screening(self):
+        release_path = ROOT / "docs/release-3.0.3.md"
+        self.assertTrue(release_path.is_file(), "3.0.3 release note is missing")
+
+        release = release_path.read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        getting_started = (ROOT / "docs/getting-started.md").read_text(
+            encoding="utf-8"
+        )
+        demo_readme = (ROOT / "demo/README.md").read_text(encoding="utf-8")
+        demo_html = (ROOT / "demo/index.html").read_text(encoding="utf-8")
+
+        for filename, text in (
+            ("README.md", readme),
+            ("CHANGELOG.md", changelog),
+            ("getting-started.md", getting_started),
+            ("demo/README.md", demo_readme),
+            ("demo/index.html", demo_html),
+        ):
+            with self.subTest(filename=filename):
+                self.assertIn("3.0.3", text)
+
+        self.assert_contains_all(
+            release,
+            (
+                "13 个文件",
+                "本地证据筛选",
+                "显式调用",
+                "不调用 Jev API",
+                "不读取凭据",
+                "不判断任务完成",
+                "实际安装",
+                "重新加载",
+                "长期自然任务仍需观察",
+            ),
+        )
+        self.assert_contains_all(
+            readme,
+            (
+                "docs/release-3.0.3.md",
+                "本地证据筛选",
+                "13 个文件",
+            ),
+        )
+        self.assert_contains_all(
+            changelog,
+            (
+                "3.0.3 — 本地证据筛选",
+                "13 个文件",
+                "不调用 Jev API",
+            ),
+        )
+        self.assert_contains_all(
+            getting_started,
+            (
+                "3.0.2 或更早安装",
+                "受控升级",
+                "release-3.0.3.md",
+            ),
+        )
+        self.assert_contains_all(
+            demo_readme,
+            (
+                "本地证据筛选",
+                "静态示例不会运行筛选器",
+            ),
+        )
+        self.assert_contains_all(
+            demo_html,
+            (
+                "安装的 Skill 是 13 个文件",
+                "docs/release-3.0.3.md",
+                "本地证据筛选",
+            ),
+        )
+
     def test_openai_metadata_is_chinese_and_explicit_only(self):
         text = read("agents/openai.yaml")
 
@@ -590,7 +669,7 @@ class SkillContractTests(unittest.TestCase):
             ),
         )
 
-    def test_runtime_file_set_is_exactly_eleven(self):
+    def test_runtime_file_set_is_exactly_thirteen(self):
         actual = {
             path.relative_to(SKILL_ROOT).as_posix()
             for path in SKILL_ROOT.rglob("*")
@@ -599,7 +678,7 @@ class SkillContractTests(unittest.TestCase):
         metadata = (SKILL_ROOT / "agents" / "openai.yaml").read_bytes()
 
         self.assertEqual(actual, EXPECTED_FILES)
-        self.assertEqual(len(actual), 11)
+        self.assertEqual(len(actual), 13)
         self.assertEqual(hashlib.sha256(metadata).hexdigest(), EXPECTED_OPENAI_YAML_SHA256)
         self.assertIn("allow_implicit_invocation: false", metadata.decode("utf-8"))
 
@@ -689,12 +768,13 @@ else:
                 "portfolio.md",
                 "deployment-governance.md",
                 "human-delivery.md",
+                "evidence-screening.md",
                 "SKILL_INDEX_ZH.md",
             },
         )
         self.assertNotRegex(text, r"references/[^)]+/")
 
-    def test_adaptive_delegation_reference_is_direct_and_runtime_package_has_eleven_files(self):
+    def test_adaptive_delegation_reference_is_direct_and_runtime_package_has_thirteen_files(self):
         skill = read("SKILL.md")
         adaptive_path = SKILL_ROOT / "references" / "adaptive-delegation.md"
 
@@ -709,7 +789,7 @@ else:
             if path.is_file()
         }
         self.assertEqual(actual, EXPECTED_FILES)
-        self.assertEqual(len(actual), 11)
+        self.assertEqual(len(actual), 13)
         self.assertNotRegex(self.read_adaptive_delegation(), r"\]\([^)]*\.md\)")
 
     def test_human_delivery_route_and_gates_are_explicit(self):
@@ -1380,14 +1460,14 @@ class DeploymentGovernanceSkillTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertIn(value, text)
 
-    def test_runtime_package_has_exact_eleven_files_and_no_deep_reference_links(self):
+    def test_runtime_package_has_exact_thirteen_files_and_no_deep_reference_links(self):
         actual = {
             path.relative_to(SKILL_ROOT).as_posix()
             for path in SKILL_ROOT.rglob("*")
             if path.is_file()
         }
         self.assertEqual(actual, EXPECTED_FILES)
-        self.assertEqual(len(actual), 11)
+        self.assertEqual(len(actual), 13)
         self.assertNotRegex(read("references/deployment-governance.md"), r"\]\([^)]*\.md\)")
 
 
