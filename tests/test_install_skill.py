@@ -18,6 +18,7 @@ import tempfile
 import unittest
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from pathlib import Path, PureWindowsPath
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -280,6 +281,150 @@ def valid_backend_evidence_fixture(skills_root):
     }
     value["evidence_digest"] = INSTALLER.switch_backend_evidence_digest(value)
     return value
+
+
+class DarwinFilesystemIdentityTests(unittest.TestCase):
+    TARGET = Path("/Users/test/.codex/skills")
+    OBSERVED = {
+        "device": 17,
+        "mount_target": "/Users",
+        "filesystem_type": "apfs",
+        "mount_flags": 0x00000001,
+    }
+
+    def metadata(self, **changes):
+        fields = {
+            "st_mode": stat.S_IFDIR | 0o755,
+            "st_dev": 17,
+            "st_ino": 41,
+            "st_size": 4096,
+            "st_nlink": 2,
+            "st_mtime_ns": 123456789,
+        }
+        fields.update(changes)
+        return SimpleNamespace(**fields)
+
+    def assert_unavailable(self, action):
+        with self.assertRaises(INSTALLER.InstallError) as caught:
+            action()
+        self.assertEqual(caught.exception.reason, "filesystem_identity_unavailable")
+        self.assertEqual(caught.exception.exit_code, 4)
+
+    def test_darwin_identity_preserves_existing_schema(self):
+        with mock.patch.object(INSTALLER.sys, "platform", "darwin"):
+            with mock.patch.object(INSTALLER, "_darwin_statfs", return_value=self.OBSERVED):
+                with mock.patch.object(INSTALLER.os, "lstat", return_value=self.metadata()):
+                    identity = INSTALLER.filesystem_identity(self.TARGET)
+
+        self.assertEqual(set(identity), INSTALLER.TARGET_FILESYSTEM_KEYS)
+        self.assertEqual(identity["device"], 17)
+        self.assertEqual(identity["mount_target"], "/Users")
+        self.assertEqual(identity["filesystem_type"], "apfs")
+        self.assertEqual(
+            identity["mount_options_sha256"],
+            "4f879db3c19fa581c574421ca0218d7aa521f1fa92b9a2f967ef9c2f66952dd5",
+        )
+
+    def test_darwin_rejects_device_mismatch(self):
+        observed = {**self.OBSERVED, "device": 99}
+        with mock.patch.object(INSTALLER, "_darwin_statfs", return_value=observed):
+            with mock.patch.object(INSTALLER.os, "lstat", return_value=self.metadata()):
+                self.assert_unavailable(
+                    lambda: INSTALLER._darwin_filesystem_identity(self.TARGET)
+                )
+
+    def test_darwin_rejects_full_directory_identity_drift(self):
+        for changed in (
+            {"st_ino": 42},
+            {"st_mtime_ns": 123456790},
+            {"st_mode": stat.S_IFREG | 0o755},
+        ):
+            with self.subTest(changed=changed):
+                with mock.patch.object(
+                    INSTALLER, "_darwin_statfs", return_value=self.OBSERVED
+                ):
+                    with mock.patch.object(
+                        INSTALLER.os,
+                        "lstat",
+                        side_effect=[self.metadata(), self.metadata(**changed)],
+                    ):
+                        self.assert_unavailable(
+                            lambda: INSTALLER._darwin_filesystem_identity(self.TARGET)
+                        )
+
+    def test_darwin_rejects_empty_mount_target_and_type(self):
+        for changed in ({"mount_target": ""}, {"filesystem_type": ""}):
+            with self.subTest(changed=changed):
+                with mock.patch.object(
+                    INSTALLER, "_darwin_statfs", return_value={**self.OBSERVED, **changed}
+                ):
+                    with mock.patch.object(
+                        INSTALLER.os, "lstat", return_value=self.metadata()
+                    ):
+                        self.assert_unavailable(
+                            lambda: INSTALLER._darwin_filesystem_identity(self.TARGET)
+                        )
+
+    def test_darwin_statfs_rejects_nonzero_return(self):
+        libc = SimpleNamespace(statfs=mock.Mock(return_value=-1))
+        with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=libc):
+            self.assert_unavailable(lambda: INSTALLER._darwin_statfs(self.TARGET))
+
+    def test_darwin_statfs_uses_mount_lstat_device(self):
+        def populate(_path, result):
+            record = INSTALLER.ctypes.cast(
+                result, INSTALLER.ctypes.POINTER(INSTALLER._DarwinStatfs)
+            ).contents
+            record.f_fsid.val[0] = 999
+            record.f_fstypename = b"apfs"
+            record.f_mntonname = b"/Users"
+            record.f_flags = 1
+            return 0
+
+        libc = SimpleNamespace(statfs=mock.Mock(side_effect=populate))
+        with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=libc):
+            with mock.patch.object(
+                INSTALLER.os, "lstat", return_value=self.metadata()
+            ) as lstat_call:
+                observed = INSTALLER._darwin_statfs(self.TARGET)
+
+        self.assertEqual(observed, self.OBSERVED)
+        lstat_call.assert_called_once_with(Path("/Users"))
+
+    def test_darwin_statfs_rejects_invalid_utf8_and_missing_nul(self):
+        for mount_bytes in (b"/Users/\xff", b"/" + b"x" * 1023):
+            with self.subTest(mount_bytes=mount_bytes[:16]):
+                def populate(_path, result):
+                    record = INSTALLER.ctypes.cast(
+                        result, INSTALLER.ctypes.POINTER(INSTALLER._DarwinStatfs)
+                    ).contents
+                    record.f_fstypename = b"apfs"
+                    record.f_mntonname = mount_bytes
+                    record.f_flags = 1
+                    return 0
+
+                libc = SimpleNamespace(statfs=mock.Mock(side_effect=populate))
+                with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=libc):
+                    self.assert_unavailable(lambda: INSTALLER._darwin_statfs(self.TARGET))
+
+    def test_darwin_statfs_rejects_empty_type_or_relative_mount(self):
+        for filesystem_type, mount_target in ((b"", b"/Users"), (b"apfs", b"Users")):
+            with self.subTest(filesystem_type=filesystem_type, mount_target=mount_target):
+                def populate(_path, result):
+                    record = INSTALLER.ctypes.cast(
+                        result, INSTALLER.ctypes.POINTER(INSTALLER._DarwinStatfs)
+                    ).contents
+                    record.f_fstypename = filesystem_type
+                    record.f_mntonname = mount_target
+                    return 0
+
+                libc = SimpleNamespace(statfs=mock.Mock(side_effect=populate))
+                with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=libc):
+                    self.assert_unavailable(lambda: INSTALLER._darwin_statfs(self.TARGET))
+
+    def test_unknown_platform_rejects_filesystem_identity(self):
+        with mock.patch.object(INSTALLER.sys, "platform", "freebsd"):
+            self.assert_unavailable(lambda: INSTALLER.filesystem_identity(self.TARGET))
 
 
 class InstallSkillTests(unittest.TestCase):

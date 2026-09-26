@@ -844,7 +844,7 @@ def _decode_mountinfo_path(value: str) -> str:
     )
 
 
-def filesystem_identity(path: Path) -> dict[str, Any]:
+def _linux_filesystem_identity(path: Path) -> dict[str, Any]:
     absolute = Path(os.path.abspath(path))
     try:
         device = os.lstat(absolute).st_dev
@@ -883,6 +883,107 @@ def filesystem_identity(path: Path) -> dict[str, Any]:
             normalized_options.encode("utf-8")
         ).hexdigest(),
     }
+
+
+class _DarwinFsid(ctypes.Structure):
+    _fields_ = [("val", ctypes.c_int32 * 2)]
+
+
+class _DarwinStatfs(ctypes.Structure):
+    _fields_ = [
+        ("f_bsize", ctypes.c_uint32),
+        ("f_iosize", ctypes.c_int32),
+        ("f_blocks", ctypes.c_uint64),
+        ("f_bfree", ctypes.c_uint64),
+        ("f_bavail", ctypes.c_uint64),
+        ("f_files", ctypes.c_uint64),
+        ("f_ffree", ctypes.c_uint64),
+        ("f_fsid", _DarwinFsid),
+        ("f_owner", ctypes.c_uint32),
+        ("f_type", ctypes.c_uint32),
+        ("f_flags", ctypes.c_uint32),
+        ("f_fssubtype", ctypes.c_uint32),
+        ("f_fstypename", ctypes.c_char * 16),
+        ("f_mntonname", ctypes.c_char * 1024),
+        ("f_mntfromname", ctypes.c_char * 1024),
+        ("f_reserved", ctypes.c_uint32 * 8),
+    ]
+
+
+def _darwin_statfs(path: Path) -> dict[str, int | str]:
+    unavailable = "filesystem_identity_unavailable"
+    try:
+        statfs_call = ctypes.CDLL(None, use_errno=True).statfs
+        statfs_call.argtypes = [ctypes.c_char_p, ctypes.POINTER(_DarwinStatfs)]
+        statfs_call.restype = ctypes.c_int
+        record = _DarwinStatfs()
+        if statfs_call(os.fsencode(path), ctypes.byref(record)) != 0:
+            raise InstallError(unavailable, 4)
+
+        def decoded_field(name: str, size: int) -> str:
+            raw = ctypes.string_at(
+                ctypes.addressof(record) + getattr(_DarwinStatfs, name).offset,
+                size,
+            )
+            if b"\0" not in raw:
+                raise InstallError(unavailable, 4)
+            return raw.split(b"\0", 1)[0].decode("utf-8", errors="strict")
+
+        mount_target = decoded_field("f_mntonname", 1024)
+        filesystem_type = decoded_field("f_fstypename", 16)
+        if not os.path.isabs(mount_target) or not filesystem_type:
+            raise InstallError(unavailable, 4)
+        mount_metadata = os.lstat(Path(mount_target))
+        if not stat.S_ISDIR(mount_metadata.st_mode):
+            raise InstallError(unavailable, 4)
+    except (OSError, AttributeError, UnicodeError, ValueError) as error:
+        raise InstallError(unavailable, 4) from error
+    return {
+        "device": mount_metadata.st_dev,
+        "mount_target": mount_target,
+        "filesystem_type": filesystem_type,
+        "mount_flags": record.f_flags,
+    }
+
+
+def _darwin_filesystem_identity(path: Path) -> dict[str, Any]:
+    unavailable = "filesystem_identity_unavailable"
+    absolute = Path(os.path.abspath(path))
+    try:
+        before = directory_identity(absolute, unavailable)
+        observed = _darwin_statfs(absolute)
+        after = directory_identity(absolute, unavailable)
+    except InstallError as error:
+        raise InstallError(unavailable, 4) from error
+    if (
+        before != after
+        or not _is_integer(observed.get("device"))
+        or before["device"] != observed["device"]
+        or not isinstance(observed.get("mount_target"), str)
+        or not os.path.isabs(observed["mount_target"])
+        or not isinstance(observed.get("filesystem_type"), str)
+        or not observed["filesystem_type"]
+        or not _is_integer(observed.get("mount_flags"))
+        or not 0 <= observed["mount_flags"] <= 0xFFFFFFFF
+    ):
+        raise InstallError(unavailable, 4)
+    normalized_options = f"darwin:{observed['mount_flags']:08x}"
+    return {
+        "device": observed["device"],
+        "mount_target": observed["mount_target"],
+        "filesystem_type": observed["filesystem_type"],
+        "mount_options_sha256": hashlib.sha256(
+            normalized_options.encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def filesystem_identity(path: Path) -> dict[str, Any]:
+    if sys.platform == "darwin":
+        return _darwin_filesystem_identity(path)
+    if sys.platform.startswith("linux"):
+        return _linux_filesystem_identity(path)
+    raise InstallError("filesystem_identity_unavailable", 4)
 
 
 def require_nofollow(reason: str) -> int:
