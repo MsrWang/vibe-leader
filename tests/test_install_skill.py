@@ -2844,6 +2844,192 @@ class UpgradePreflightTests(unittest.TestCase):
                         approval_id="UPGRADE-PREFLIGHT-TEST-001",
                     )
 
+    def make_verified_release_source(self):
+        from tests.test_release_archive import commit_all, initialize_repo, load_release
+
+        release = load_release(self)
+        repo = self.tempdir / "release-repo"
+        initialize_repo(repo)
+        source = repo / "skill" / SKILL_NAME
+        shutil.copytree(self.new_source, source)
+        (repo / "scripts").mkdir()
+        shutil.copyfile(ROOT / "scripts" / "release_archive.py", repo / "scripts" / "release_archive.py")
+        (repo / "LICENSE").write_text("synthetic license\n", encoding="utf-8")
+        (repo / "README.md").write_text("synthetic release\n", encoding="utf-8")
+        commit = commit_all(repo)
+        output = self.tempdir / "release-assets"
+        output.mkdir()
+        release.build_archive(repo, commit, output)
+        destination = self.tempdir / "release-extracted"
+        release.extract_archive(output / "Vibe-Leader-3.1.0-GitHub.zip", output / "SHA256SUMS.txt",
+                                destination, expected_commit=commit)
+        shutil.rmtree(repo)
+        source = destination / "Vibe-Leader-3.1.0" / "skill" / SKILL_NAME
+        return source, commit
+
+    def test_verified_release_archive_can_prepare_upgrade_without_git_directory(self):
+        source, commit = self.make_verified_release_source()
+        self.assertFalse(any((parent / ".git").exists() for parent in [source, *source.parents]))
+        self.assertEqual(sum(entry["type"] == "file" for entry in INSTALLER.scan_tree(source).values()), 13)
+        before = self.snapshot_tree(self.skills_root)
+        with mock.patch.dict(os.environ, {"CODEX_HOME": str(self.codex_home)}):
+            try:
+                request = INSTALLER.build_upgrade_request(source, self.target, self.manifest,
+                                                         approval_id="RELEASE-PREFLIGHT-TEST-001")
+            except INSTALLER.InstallError as error:
+                self.fail(f"verified release must prepare without Git: {error.reason}")
+        self.assertEqual(request["source_head"], commit)
+        self.assertEqual(request["phase"], "PREPARED")
+        self.assertEqual(self.snapshot_tree(self.skills_root), before)
+
+    def test_release_manifest_or_skill_tampering_blocks_upgrade_before_writes(self):
+        source, _ = self.make_verified_release_source()
+        manifest = source.parents[1] / "RELEASE-MANIFEST.json"
+        original = manifest.read_bytes()
+        skill = source / "SKILL.md"
+        skill_bytes = skill.read_bytes()
+        for change in ("commit", "version", "digest", "skill", "mode", "directory-mode", "missing-manifest"):
+            with self.subTest(change=change):
+                payload = json.loads(original)
+                if change == "commit":
+                    payload["source_commit"] = "not-a-git-object-id"
+                elif change == "version":
+                    payload["format_version"] = True
+                elif change == "digest":
+                    next(item for item in payload["files"] if item["path"].endswith("/SKILL.md"))["sha256"] = "0" * 64
+                elif change == "skill":
+                    skill.write_bytes(skill_bytes + b"\ntampered\n")
+                elif change == "mode":
+                    skill.chmod(0o755)
+                elif change == "directory-mode":
+                    (source / "references").chmod(0o700)
+                manifest.write_text(json.dumps(payload), encoding="utf-8")
+                if change == "missing-manifest":
+                    manifest.unlink()
+                before = self.snapshot_tree(self.skills_root)
+                with mock.patch.dict(os.environ, {"CODEX_HOME": str(self.codex_home)}):
+                    with self.assertRaises(INSTALLER.InstallError) as raised:
+                        INSTALLER.build_upgrade_request(source, self.target, self.manifest,
+                                                       approval_id="RELEASE-PREFLIGHT-REJECT")
+                self.assertIn(raised.exception.reason, {"source_head_unavailable", "candidate_inventory_not_unique"})
+                self.assertEqual(self.snapshot_tree(self.skills_root), before)
+                manifest.write_bytes(original)
+                skill.write_bytes(skill_bytes)
+                skill.chmod(0o644)
+                (source / "references").chmod(0o755)
+
+    def test_release_source_head_rejects_extra_missing_or_nonregular_skill_entries(self):
+        source, _ = self.make_verified_release_source()
+        for change in ("extra-file", "empty-directory", "missing-file", "symlink", "root-mode"):
+            with self.subTest(change=change):
+                extra = source / "extra"
+                skill = source / "SKILL.md"
+                content = skill.read_bytes()
+                if change == "extra-file":
+                    extra.write_text("unexpected", encoding="utf-8")
+                elif change == "empty-directory":
+                    extra.mkdir()
+                elif change in ("missing-file", "symlink"):
+                    skill.unlink()
+                    if change == "symlink":
+                        skill.symlink_to(self.new_source / "SKILL.md")
+                else:
+                    source.chmod(0o700)
+                with self.assertRaises(INSTALLER.InstallError) as raised:
+                    INSTALLER.read_source_head(source)
+                self.assertEqual(raised.exception.reason, "source_head_unavailable")
+                if extra.is_dir():
+                    extra.rmdir()
+                elif extra.exists():
+                    extra.unlink()
+                if skill.is_symlink():
+                    skill.unlink()
+                skill.write_bytes(content)
+                source.chmod(0o755)
+
+    def test_release_manifest_is_only_read_at_fixed_top_level(self):
+        source, commit = self.make_verified_release_source()
+        top = source.parents[1]
+        manifest = top / "RELEASE-MANIFEST.json"
+        original = manifest.read_bytes()
+        manifest.unlink()
+        for alternate in (source / "RELEASE-MANIFEST.json", source.parent / "RELEASE-MANIFEST.json",
+                          top.parent / "RELEASE-MANIFEST.json"):
+            alternate.write_bytes(original)
+        with self.assertRaises(INSTALLER.InstallError) as raised:
+            INSTALLER.read_source_head(source)
+        self.assertEqual(raised.exception.reason, "source_head_unavailable")
+        for alternate in (source / "RELEASE-MANIFEST.json", source.parent / "RELEASE-MANIFEST.json",
+                          top.parent / "RELEASE-MANIFEST.json"):
+            alternate.unlink()
+        manifest.write_bytes(original)
+        self.assertEqual(INSTALLER.read_source_head(source), commit)
+        renamed = top.with_name("wrong-release-name")
+        top.rename(renamed)
+        with self.assertRaises(INSTALLER.InstallError):
+            INSTALLER.read_source_head(renamed / "skill" / SKILL_NAME)
+
+    def test_release_manifest_rejects_duplicate_skills_and_json_keys(self):
+        source, _ = self.make_verified_release_source()
+        manifest = source.parents[1] / "RELEASE-MANIFEST.json"
+        original = manifest.read_bytes()
+        payload = json.loads(original)
+        payload["files"].append({"path": "other/SKILL.md", "mode": 0o644, "size": 0,
+                                 "sha256": hashlib.sha256(b"").hexdigest()})
+        manifest.write_text(json.dumps(payload), encoding="utf-8")
+        with self.assertRaises(INSTALLER.InstallError) as raised:
+            INSTALLER.read_source_head(source)
+        self.assertIn(raised.exception.reason, {"source_head_unavailable", "candidate_inventory_not_unique"})
+        manifest.write_bytes(b'{"format_version":1,' + original.lstrip()[1:])
+        with self.assertRaises(INSTALLER.InstallError) as raised:
+            INSTALLER.read_source_head(source)
+        self.assertEqual(raised.exception.reason, "source_head_unavailable")
+
+    def test_release_source_commit_must_be_hex_without_sign_or_whitespace(self):
+        source, _ = self.make_verified_release_source()
+        manifest = source.parents[1] / "RELEASE-MANIFEST.json"
+        payload = json.loads(manifest.read_bytes())
+        for invalid in ("-" + "1" * 39, "+" + "1" * 39, " " + "1" * 39, "1" * 39 + "\n"):
+            with self.subTest(invalid=invalid):
+                payload["source_commit"] = invalid
+                manifest.write_text(json.dumps(payload), encoding="utf-8")
+                with self.assertRaises(INSTALLER.InstallError) as raised:
+                    INSTALLER.read_source_head(source)
+                self.assertEqual(raised.exception.reason, "source_head_unavailable")
+
+    def test_release_source_with_invalid_git_marker_cannot_use_manifest_fallback(self):
+        source, _ = self.make_verified_release_source()
+        marker = source.parents[1] / ".git"
+        marker.symlink_to(self.tempdir / "missing-git-directory", target_is_directory=True)
+        with self.assertRaises(INSTALLER.InstallError) as raised:
+            INSTALLER.read_source_head(source)
+        self.assertEqual(raised.exception.reason, "source_head_unavailable")
+
+    def test_release_root_does_not_borrow_unrelated_ancestor_git_head(self):
+        from tests.test_release_archive import commit_all, initialize_repo
+
+        source, commit = self.make_verified_release_source()
+        ancestor = self.tempdir / "unrelated-checkout"
+        initialize_repo(ancestor)
+        (ancestor / "README.md").write_text("unrelated git parent", encoding="utf-8")
+        other_commit = commit_all(ancestor)
+        self.assertNotEqual(other_commit, commit)
+        top = source.parents[1]
+        top.rename(ancestor / top.name)
+        source = ancestor / top.name / "skill" / SKILL_NAME
+        self.assertEqual(INSTALLER.read_source_head(source), commit)
+
+    def test_git_checkout_still_reads_git_head_before_release_fallback(self):
+        from tests.test_release_archive import commit_all, initialize_repo
+
+        repo = self.tempdir / "real-git-repo"
+        initialize_repo(repo)
+        source = repo / "skill" / SKILL_NAME
+        shutil.copytree(self.new_source, source)
+        (repo / "RELEASE-MANIFEST.json").write_text("invalid manifest", encoding="utf-8")
+        commit = commit_all(repo)
+        self.assertEqual(INSTALLER.read_source_head(source), commit)
+
     def test_prepare_upgrade_requires_verified_old_manifest(self):
         (self.target / "SKILL.md").write_text("drift\n", encoding="utf-8")
 

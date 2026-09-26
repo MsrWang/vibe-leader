@@ -24,6 +24,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -4126,8 +4127,104 @@ def build_preflight(
     return report
 
 
+def _read_release_source_head(source: Path) -> str:
+    """Recheck a release tree already bound by the archive's expected_commit gate.
+
+    This local manifest is an integrity inventory, not a signature or trust anchor.
+    Only the fixed release root may supply it; never search ancestors for one.
+    """
+    reason = "source_head_unavailable"
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("duplicate_key")
+            value[key] = item
+        return value
+
+    try:
+        top = source.parents[1]
+        if top.name != "Vibe-Leader-3.1.0" or source != top / "skill" / SKILL_NAME:
+            raise ValueError("release_layout_invalid")
+        for directory in (top, source.parent, source):
+            strict_existing_directory(directory, reason)
+            if stat.S_IMODE(directory.lstat().st_mode) != 0o755:
+                raise ValueError("release_directory_mode_invalid")
+        content, _, _ = read_bounded_regular_file(top / "RELEASE-MANIFEST.json", reason)
+        manifest = json.loads(content.decode("utf-8"), object_pairs_hook=unique_object)
+        if (
+            not isinstance(manifest, dict)
+            or set(manifest) != {"format_version", "source_commit", "top_level", "files"}
+            or type(manifest["format_version"]) is not int or manifest["format_version"] != 1
+            or manifest["top_level"] != "Vibe-Leader-3.1.0"
+            or not isinstance(manifest["source_commit"], str)
+            or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", manifest["source_commit"]) is None
+            or not isinstance(manifest["files"], list) or len(manifest["files"]) > 499
+        ):
+            raise ValueError("release_manifest_invalid")
+        prefix = f"skill/{SKILL_NAME}/"
+        expected: dict[str, dict[str, Any]] = {}
+        names: dict[str, tuple[str, bool]] = {}
+        skill_paths = []
+        total = len(content)
+        for record in manifest["files"]:
+            if (
+                not isinstance(record, dict) or set(record) != {"path", "mode", "size", "sha256"}
+                or not isinstance(record["path"], str)
+                or type(record["mode"]) is not int or record["mode"] not in (0o644, 0o755)
+                or type(record["size"]) is not int or not 0 <= record["size"] <= 25 * 1024 * 1024
+                or not isinstance(record["sha256"], str)
+                or re.fullmatch(r"[0-9a-f]{64}", record["sha256"]) is None
+            ):
+                raise ValueError("release_record_invalid")
+            path = record["path"]
+            parts = path.split("/")
+            if (
+                "\\" in path or ":" in path
+                or any(unicodedata.category(char).startswith("C") for char in path)
+                or any(part in ("", ".", "..") or part.rstrip(" .") != part
+                       or unicodedata.normalize("NFC", part).casefold() == ".git" for part in parts)
+                or path == "RELEASE-MANIFEST.json"
+            ):
+                raise ValueError("release_path_invalid")
+            for index in range(1, len(parts) + 1):
+                partial = "/".join(parts[:index])
+                key = unicodedata.normalize("NFC", partial).casefold()
+                is_file = index == len(parts)
+                previous = names.get(key)
+                if previous is not None and (previous != (partial, False) or is_file):
+                    raise ValueError("release_path_collision")
+                names[key] = (partial, is_file)
+            total += record["size"]
+            if total > 50 * 1024 * 1024:
+                raise ValueError("release_size_invalid")
+            if parts[-1] == "SKILL.md":
+                skill_paths.append(path)
+            if path.startswith(prefix):
+                relative = path[len(prefix):]
+                expected[relative] = {
+                    "type": "file", "mode": record["mode"],
+                    "size": record["size"], "sha256": record["sha256"],
+                }
+                relative_parts = relative.split("/")
+                for index in range(1, len(relative_parts)):
+                    expected["/".join(relative_parts[:index])] = {"type": "directory", "mode": 0o755}
+        if skill_paths != [prefix + "SKILL.md"] or expected != scan_tree(source, reason):
+            raise ValueError("release_skill_inventory_invalid")
+        return manifest["source_commit"]
+    except (OSError, ValueError, TypeError, KeyError, IndexError, RecursionError, InstallError) as error:
+        raise InstallError(reason, 4, status="unknown") from error
+
+
 def read_source_head(source: Path) -> str:
     source = Path(os.path.abspath(source))
+    release_root = source.parents[1] if len(source.parents) >= 2 else None
+    release_layout = (
+        release_root is not None
+        and release_root.name == "Vibe-Leader-3.1.0"
+        and source == release_root / "skill" / SKILL_NAME
+    )
     current = source
     git_directory: Path | None = None
     while True:
@@ -4153,8 +4250,10 @@ def read_source_head(source: Path) -> str:
             if git_directory.is_symlink() or not git_directory.is_dir():
                 raise InstallError("source_head_unavailable", 4, status="unknown")
             break
-        if current.parent == current:
+        if candidate.is_symlink() or candidate.exists():
             raise InstallError("source_head_unavailable", 4, status="unknown")
+        if current.parent == current or (release_layout and current == release_root):
+            return _read_release_source_head(source)
         current = current.parent
 
     head_path = git_directory / "HEAD"
