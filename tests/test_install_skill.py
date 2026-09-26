@@ -2512,7 +2512,11 @@ class MacPreflightTests(unittest.TestCase):
         before = self.snapshot_tree(self.tempdir)
         environment = dict(os.environ)
         with mock.patch.object(INSTALLER, "_platform_facts", side_effect=platform_error, return_value=facts or {
-            "system": "darwin", "machine": "arm64", "python_version": "3.11.9",
+            "system": "darwin",
+            "machine": "arm64",
+            "python_implementation": "CPython",
+            "python_version": "3.14.7",
+            "python_releaselevel": "final",
         }), mock.patch.object(
             INSTALLER, "probe_mode_capability", side_effect=AssertionError("write probe"),
         ), mock.patch.object(
@@ -2648,24 +2652,70 @@ class MacPreflightTests(unittest.TestCase):
         self.source = link
         self.assert_not_ready("SOURCE_LAYOUT_INVALID")
 
-    def test_unsupported_platform_architecture_and_python_are_not_ready(self):
+    def test_unsupported_platform_and_architecture_are_not_ready(self):
         for key, value, reason in (
             ("system", "linux", "PLATFORM_UNSUPPORTED"),
             ("system", "unknown", "PLATFORM_UNSUPPORTED"),
             ("machine", "x86_64", "ARCHITECTURE_UNSUPPORTED"),
-            ("python_version", "3.10.14", "PYTHON_VERSION_UNSUPPORTED"),
-            ("python_version", "unavailable", "PYTHON_VERSION_UNSUPPORTED"),
         ):
             with self.subTest(key=key, value=value):
-                facts = {"system": "darwin", "machine": "arm64", "python_version": "3.11.9"}
+                facts = {
+                    "system": "darwin",
+                    "machine": "arm64",
+                    "python_implementation": "CPython",
+                    "python_version": "3.14.7",
+                    "python_releaselevel": "final",
+                }
                 facts[key] = value
                 self.assert_not_ready(reason, facts=facts)
 
-    def test_newer_python_is_ready(self):
+    def test_supported_cpython_range_is_ready(self):
+        for version in ("3.11.0", "3.11.9", "3.12.0", "3.13.0", "3.14.7"):
+            with self.subTest(version=version):
+                report = self.preflight(facts={
+                    "system": "darwin",
+                    "machine": "arm64",
+                    "python_implementation": "CPython",
+                    "python_version": version,
+                    "python_releaselevel": "final",
+                })
+                self.assertEqual(report["status"], "READY")
+                self.assertEqual(report["reasons"], [])
+
+    def test_python_below_floor_requires_update(self):
         report = self.preflight(facts={
-            "system": "darwin", "machine": "arm64", "python_version": "3.12.0",
+            "system": "darwin",
+            "machine": "arm64",
+            "python_implementation": "CPython",
+            "python_version": "3.10.14",
+            "python_releaselevel": "final",
         })
-        self.assertEqual(report["status"], "READY")
+        self.assertEqual(report["status"], "NOT_READY")
+        self.assertEqual(report["reasons"], ["PYTHON_UPDATE_REQUIRED"])
+
+    def test_unverified_runtime_is_not_ready(self):
+        base = {
+            "system": "darwin",
+            "machine": "arm64",
+            "python_implementation": "CPython",
+            "python_version": "3.14.7",
+            "python_releaselevel": "final",
+        }
+        cases = {
+            "pypy": {**base, "python_implementation": "PyPy"},
+            "prerelease_version": {**base, "python_version": "3.14.7rc1"},
+            "prerelease_level": {**base, "python_releaselevel": "release candidate"},
+            "future_minor": {**base, "python_version": "3.15.0"},
+            "invalid_version": {**base, "python_version": "unavailable"},
+            "missing_version": {
+                key: value for key, value in base.items() if key != "python_version"
+            },
+        }
+        for name, facts in cases.items():
+            with self.subTest(case=name):
+                report = self.preflight(facts=facts)
+                self.assertEqual(report["status"], "NOT_READY")
+                self.assertEqual(report["reasons"], ["RUNTIME_UNVERIFIED"])
 
     def test_unavailable_platform_facts_return_a_redacted_report(self):
         report = self.assert_not_ready(
@@ -2739,7 +2789,11 @@ class MacPreflightTests(unittest.TestCase):
         for system, status, code in (("darwin", "READY", 0), ("linux", "NOT_READY", 4)):
             with self.subTest(system=system), mock.patch.object(
                 INSTALLER, "_platform_facts", return_value={
-                    "system": system, "machine": "arm64", "python_version": "3.11.9",
+                    "system": system,
+                    "machine": "arm64",
+                    "python_implementation": "CPython",
+                    "python_version": "3.14.7",
+                    "python_releaselevel": "final",
                 },
             ), mock.patch.object(sys, "argv", [
                 str(SCRIPT), "preflight", "--source", str(self.source),

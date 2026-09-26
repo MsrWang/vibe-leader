@@ -6,13 +6,14 @@
 
 **Architecture:** 保留 `evidence_filter.py` 和 `install_skill.py` 的公开接口，把 Linux 与 Darwin 的文件打开、文件系统身份和重命名原语收拢到内部平台后端。新增独立发行工具从固定 Git 提交生成确定性 ZIP，并在解包前执行严格路径、清单、摘要和大小校验。WSL 只证明分支合同与现有回归；Darwin 内核、APFS 和 Codex App 发现由 Apple Silicon Mac 候选验收负责。
 
-**Tech Stack:** Python 3.11+ 标准库、`unittest`、`ctypes`、系统 Git、GitHub Releases、macOS Codex App。
+**Tech Stack:** CPython 3.11–3.14 标准库、`unittest`、`ctypes`、系统 Git、GitHub Releases、macOS 14+ Codex App。
 
 ## Global Constraints
 
 - 代码基线固定为 Vibe Leader 3.0.3 提交 `d0e17544584fb6c68254c49b87f4275fa19a71f4`；实施分支为 `codex/vibe-leader-3.1-macos`。
-- 最低 Python 版本保持 3.11；不增加第三方 Python 包、Homebrew 依赖或系统安装动作。
-- Apple Silicon 是 3.1.0 的实际验收环境；Intel Mac 只能标为未验收，不得外推支持结论。
+- 最低兼容版本为稳定版 CPython 3.11，支持区间为 `3.11 <= Python < 3.15`；新安装推荐版本和 M6 参考验收版本固定为 CPython 3.14.7。
+- 低于 3.11 返回 `PYTHON_UPDATE_REQUIRED`；非 CPython、预发布版、无法解析的版本和 3.15+ 返回 `RUNTIME_UNVERIFIED`；不增加第三方 Python 包、Homebrew 依赖或系统安装动作。
+- 通用目标为 macOS 14+ 与 Apple Silicon M1+；2026 Mac mini（M6）是本轮真实参考验收机，Intel Mac 只能标为未验收，不得外推支持结论。
 - 可安装 Skill 仍是精确 13 个文件；本计划不修改 `SKILL.md` 的角色、权限、主循环或显式调用合同。
 - 不接入外部 Jev API、第三方模型路由或凭据；不把项目级模块编排加入 Vibe Leader 或 Jev。
 - Darwin 能力缺失、结果矛盾、身份漂移或清理不完整时失败关闭；不得退回普通路径打开、覆盖式移动、先删除后移动或普通复制。
@@ -460,7 +461,7 @@ def _platform_facts() -> dict[str, str]:
 
 1. 验证 `selection_source`；`CODEX_HOME` 必须与环境变量对应的现有规范目录下 `skills` 完全一致，`EXPLICIT_SKILLS_ROOT` 只使用明确参数；
 2. 严格读取并核对源 Skill 的精确 13 文件布局，返回文件数和 `canonical_tree_digest()`，不返回源路径；
-3. 读取平台、架构和 Python 版本，只有 `darwin`、`arm64`、Python 3.11+ 才满足本轮发布目标；
+3. 读取平台、架构和 Python 版本，先按 Task 4 的 `darwin`、`arm64`、Python 3.11+ 基线判断；Task 5A 再把运行时合同收束为稳定版 CPython 3.11–3.14；
 4. 读取 skills-root 稳定目录身份和文件系统身份，只返回选择来源、稳定身份和四字段文件系统身份；
 5. target 与 state 均不存在时返回 `FRESH_INSTALL`；两者均存在且旧 manifest 核验无漂移时返回 `CONTROLLED_UPGRADE`；其他组合返回 `BLOCKED`；
 6. 不调用 `probe_mode_capability()` 或 `probe_switch_capability()`，只列出 `MODE_CAPABILITY_PROBE` 与 `SWITCH_CAPABILITY_PROBE` 为待写入阶段检查；
@@ -669,22 +670,107 @@ git commit -m "feat: add deterministic release archive"
 
 ---
 
-### Checkpoint A: Apple Silicon Mac 只读就绪门
+### Task 5A: 收束 Python 兼容下限、推荐版本与未验证运行时
 
-Task 6 开始前，暂停源码修改，在用户的 Mac 任务中完成只读检查。该检查不下载候选、不安装 Skill、不创建能力探针，也不修改 `CODEX_HOME`。
+**Files:**
+- Modify: `scripts/install_skill.py:3998-4065`
+- Modify: `tests/test_install_skill.py:2483-2770`
 
-执行并记录：
+**Interfaces:**
+- Consumes: Task 4 的 `_platform_facts()` 与 `build_preflight()` 九字段只读报告。
+- Produces: `_python_runtime_reason(facts: dict[str, str]) -> str | None`；平台事实新增 `python_implementation` 与 `python_releaselevel`，支持稳定版 CPython 3.11–3.14。
 
-```bash
-sw_vers -productVersion
-sw_vers -buildVersion
-uname -m
-python3 -c 'import platform, sys; print(platform.machine()); print(platform.python_version()); print(sys.executable)'
+- [ ] **Step 1: 写版本边界和实现类型失败测试**
+
+将 `MacPreflightTests.preflight()` 的默认事实固定为：
+
+```python
+{
+    "system": "darwin",
+    "machine": "arm64",
+    "python_implementation": "CPython",
+    "python_version": "3.14.7",
+    "python_releaselevel": "final",
+}
 ```
 
-同时由用户在 Codex App 中确认当前 App 版本、能够创建新任务，并明确选择本次 `CODEX_HOME` 或 `skills-root`。收据只记录来源类别、目录是否存在、是否为本地文件系统、是否已有同名 Skill；不记录用户名或绝对路径。
+新增精确断言：稳定版 CPython 3.11.0、3.11.9、3.12、3.13 与 3.14.7 返回 `READY`；3.10.14 返回 `PYTHON_UPDATE_REQUIRED`；PyPy、`3.14.7rc1`、`python_releaselevel=release candidate`、3.15.0、非法或缺失版本字段返回 `RUNTIME_UNVERIFIED`。报告继续不包含路径或用户名。
 
-继续条件：`uname -m` 与 Python `platform.machine()` 都是 `arm64`，Python 为 3.11+，Codex App 可创建新任务，Skill 根来源明确且事实没有矛盾。否则状态保持 `NOT_READY`，3.0.3 继续作为稳定版。
+- [ ] **Step 2: 运行新边界测试并确认失败**
+
+Run:
+
+```bash
+python3 -B -m unittest -v \
+  tests.test_install_skill.MacPreflightTests.test_supported_cpython_range_is_ready \
+  tests.test_install_skill.MacPreflightTests.test_python_below_floor_requires_update \
+  tests.test_install_skill.MacPreflightTests.test_unverified_runtime_is_not_ready
+```
+
+Expected: FAIL；当前实现把所有 3.11+ 数字版本都接受，并只返回 `PYTHON_VERSION_UNSUPPORTED`。
+
+- [ ] **Step 3: 实现稳定版 CPython 版本分类**
+
+加入：
+
+```python
+MIN_SUPPORTED_PYTHON = (3, 11, 0)
+MAX_EXCLUSIVE_SUPPORTED_PYTHON = (3, 15, 0)
+RECOMMENDED_PYTHON = "3.14.7"
+
+
+def _python_runtime_reason(facts: dict[str, str]) -> str | None:
+    if (
+        facts.get("python_implementation") != "CPython"
+        or facts.get("python_releaselevel") != "final"
+    ):
+        return "RUNTIME_UNVERIFIED"
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", facts.get("python_version", ""))
+    if match is None:
+        return "RUNTIME_UNVERIFIED"
+    version = tuple(map(int, match.groups()))
+    if version < MIN_SUPPORTED_PYTHON:
+        return "PYTHON_UPDATE_REQUIRED"
+    if version >= MAX_EXCLUSIVE_SUPPORTED_PYTHON:
+        return "RUNTIME_UNVERIFIED"
+    return None
+```
+
+`_platform_facts()` 使用 `platform.python_implementation()`、`platform.python_version()` 和 `sys.version_info.releaselevel` 填充完整事实。`build_preflight()` 只追加 `_python_runtime_reason()` 返回的稳定 reason code；不自动安装、升级或调用包管理器。
+
+- [ ] **Step 4: 运行预检聚焦回归**
+
+Run:
+
+```bash
+python3 -B -m unittest -v tests.test_install_skill.MacPreflightTests
+```
+
+Expected: PASS；3.11 仍是兼容下限，3.14.7 是默认测试与推荐版本，3.15+ 保持未验证。
+
+- [ ] **Step 5: 提交运行时合同修订**
+
+```bash
+git add scripts/install_skill.py tests/test_install_skill.py \
+  docs/superpowers/specs/2026-09-26-vibe-leader-3.1-macos-compatibility-design.md \
+  docs/superpowers/plans/2026-09-26-vibe-leader-3.1-macos-compatibility.md
+git commit -m "fix: define macOS Python compatibility contract"
+```
+
+---
+
+### Checkpoint A: 固定 Apple Silicon 参考配置门
+
+Task 6 开始前不读取用户个人 Mac，也不要求用户先执行本机命令。候选文档和测试固定使用以下去个人化参考配置：
+
+- 通用设计范围：macOS 14+、Apple Silicon M1+、`arm64`；
+- 参考验收机：2026 Mac mini（M6）；
+- 参考验收系统：macOS 27 的验收当日稳定补丁版本；
+- 推荐与参考验收运行时：CPython 3.14.7；
+- 兼容下限：稳定版 CPython 3.11；
+- 真实 `CODEX_HOME`、Codex App 版本、目标文件系统和安装前状态在候选下载后的 Mac 验收中重新绑定。
+
+继续条件：设计、预检和公开材料均区分“通用支持目标”“参考验收目标”“真实验收结果”。该检查点不生成 Mac 就绪结论；3.0.3 继续作为稳定版，直到候选完成真实 Mac 验收。
 
 ---
 
@@ -702,7 +788,7 @@ python3 -c 'import platform, sys; print(platform.machine()); print(platform.pyth
 - Modify: `tests/test_skill_contract.py:449-535`
 
 **Interfaces:**
-- Consumes: Checkpoint A 的去标识化事实、Task 1–5 的稳定命令和 13 文件 Skill 清单。
+- Consumes: Checkpoint A 的固定参考配置、Task 1–5A 的稳定命令和 13 文件 Skill 清单。
 - Produces: 3.1 公开说明、Mac 验收步骤、全量本地回归证据，以及冻结提交对应的三个未发布候选资产。
 
 - [ ] **Step 1: 先写 3.1 公开合同失败测试**
@@ -719,6 +805,8 @@ def test_3_1_public_materials_define_macos_candidate_boundary(self):
     for required in (
         "Apple Silicon",
         "Python 3.11+",
+        "CPython 3.14.7",
+        "2026 Mac mini（M6）",
         "Vibe-Leader-3.1.0-GitHub.zip",
         "release_archive.py",
         "SHA256SUMS.txt",
@@ -751,13 +839,14 @@ Expected: FAIL，原因是 3.1 发行说明和 Mac 验收指南尚不存在。
 
 - 3.1 只替换平台原语，不改变主管定位、授权合同或 Jev 的本地证据筛选范围；
 - 可安装 Skill 仍为 13 个文件；
-- Checkpoint A 记录的精确 macOS、Apple Silicon 和 Python 组合；
+- 通用支持目标为 macOS 14+、Apple Silicon M1+ 和稳定版 CPython 3.11–3.14；
+- 2026 Mac mini（M6）、macOS 27 稳定补丁版本和 CPython 3.14.7 只能写为“参考验收目标”，真实验收前不得写为“已验证”；
 - WSL 测试、Mac 技术检查、Codex App 用户观察和平台发布是四种不同证据；
 - Intel Mac、Windows 原生、网络盘、外接盘和外部 Jev 没有由本版证明。
 
 `docs/macos-acceptance-3.1.md` 必须给出完整顺序：系统摘要核对、安全解包、`preflight`、隔离临时 `CODEX_HOME`、真实安装批准、新任务显式调用、合成本地证据筛选、用户观察、候选回滚、原状态确认、正式版重新安装。文档只给命令模板中可由本机计算的 shell 变量，不写用户名、Token 或固定绝对路径。
 
-README、Changelog、入门、限制和 demo 只陈述已经有证据的范围。Checkpoint A 只能写为“就绪”，不能写为“兼容验收通过”。
+README、Changelog、入门、限制和 demo 只陈述已经有证据的范围。Checkpoint A 只能写为“固定参考配置”，不能写为“本机就绪”或“兼容验收通过”。
 
 - [ ] **Step 4: 运行文档、Skill 清单和聚焦回归**
 

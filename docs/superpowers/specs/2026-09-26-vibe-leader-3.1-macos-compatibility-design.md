@@ -2,7 +2,7 @@
 
 日期：2026-09-26
 
-状态：用户已于 2026-09-26 确认；实施计划已编写，尚未实施
+状态：用户已于 2026-09-26 确认原设计；Task 1–5 已实施；用户于 2026-09-27 确认通用 macOS 与 Python 版本合同修订
 
 代码基线：Vibe Leader 3.0.3，提交 `d0e17544584fb6c68254c49b87f4275fa19a71f4`
 
@@ -41,16 +41,18 @@
 | 环境 | 3.1 目标状态 | 证据要求 |
 | --- | --- | --- |
 | Windows Codex Desktop + Ubuntu/WSL | 保持 3.0.3 已有行为 | 当前回归与受影响用例通过 |
-| macOS + Apple Silicon + Codex App | 本轮正式目标 | 用户的真实 Mac 完成下载、安装、发现、调用、筛选和恢复观察 |
-| macOS + Intel | 代码路径不按 CPU 架构主动阻断，但不标为已验收 | 后续独立机器证据 |
+| macOS 14+ + Apple Silicon M1+ + Codex App | 本轮通用支持目标 | 用户的真实 Mac 完成下载、安装、发现、调用、筛选和恢复观察；公开材料区分设计支持范围与实际验收机型 |
+| macOS + Intel | 不在本轮支持范围，预检停止 | 后续需要独立设计、合同测试和真实机器证据 |
 | macOS 外接盘、网络盘或不支持安全重命名的文件系统 | 依据能力探针决定 | 能力不完整时失败关闭，不降级到不安全复制或覆盖 |
 | Windows 原生 | 不在本轮范围 | 后续独立设计与验收 |
 
-最低运行要求保持 Python 3.11+。候选包只提供标准库实现；如果目标 Mac 没有满足版本要求的 Python，预检返回明确的运行时缺口并停止，不代用户安装系统软件。
+Python 合同分为三个层次：最低兼容版本为稳定版 CPython 3.11，当前支持区间为 `3.11 <= Python < 3.15`，新安装推荐版本和本轮参考验收版本固定为 CPython 3.14.7。候选包只提供标准库实现；低于 3.11 时预检返回 `PYTHON_UPDATE_REQUIRED`，非 CPython、预发布版、无法解析的版本或尚未验证的 3.15+ 返回 `RUNTIME_UNVERIFIED`，并且都停止后续安装。安装器不代用户安装或升级 Python。
 
-Apple Silicon 是发布验收环境，不是代码分支条件。Darwin 后端按 `sys.platform == "darwin"` 和运行时能力选择；CPU 架构只进入验收记录和支持声明。
+版本下限代表代码兼容范围，不代表推荐新装旧版本。Python 3.11 已进入仅安全修复阶段；新用户按文档安装 CPython 3.14.7。3.12、3.13 和稳定版 3.14 继续处于兼容范围，但只有实际进入验证矩阵的组合才能写成“已验证”。
 
-3.1.0 的公开说明必须记录实际验收的 macOS 完整版本、Apple Silicon 架构和 Python 版本。没有其他机器证据时，只能写“已在该组合验证”，不能外推为所有 macOS 版本或全部 Apple Silicon 设备均已验证。
+Darwin 后端按 `sys.platform == "darwin"` 和运行时能力选择；本轮预检同时要求 `arm64`，使公开支持目标与 Apple Silicon 验收范围一致。未来扩展 Intel Mac 时需单独修订支持合同，不能仅绕过预检。
+
+本轮参考验收配置固定为 2026 Mac mini（M6）、验收当日的 macOS 27 稳定补丁版本、`arm64` 与 CPython 3.14.7。该配置在真实验收完成前只能称为“参考验收目标”；验收完成后，3.1.0 的公开说明记录实际 macOS 完整版本、构建号、架构和 Python 版本。没有其他机器证据时，只能写“已在该组合验证”，不能把 M6 单机结果外推为所有 macOS 版本或全部 Apple Silicon 设备均已验证。
 
 ## 4. 当前阻点
 
@@ -194,18 +196,18 @@ Hugging Face 同步只绑定 `MsrWang0112/vibe-leader`。GitHub 候选、GitHub 
 
 ## 8. 验证策略
 
-### 8.0 Mac 只读就绪门
+### 8.0 固定参考配置门
 
-冻结候选前，在用户的 Mac 上完成一次不写 `CODEX_HOME` 的就绪检查，记录：
+冻结候选前不再要求读取用户个人 Mac 的环境事实。候选构建使用以下固定、去个人化的参考配置合同：
 
-- macOS 完整版本和构建号；
-- `uname -m` 与 Python `platform.machine()`，两者都必须是 `arm64`；
-- Python 完整版本，必须满足 3.11+；
-- 用户明确选择的 `CODEX_HOME` 或 `skills-root` 及其来源类别，不公开真实绝对路径；
-- 目标目录是否存在、是否为本地文件系统、当前是否已有同名 Skill；
-- 当前 Codex App 版本、能否创建新任务，以及本机 Skill 发现入口是否可检查。
+- 通用支持目标：macOS 14+、Apple Silicon M1+、`arm64`；
+- 参考验收机：2026 Mac mini（M6）；
+- 参考验收系统：macOS 27 的验收当日稳定补丁版本；
+- 最低兼容运行时：稳定版 CPython 3.11；
+- 新安装推荐与参考验收运行时：CPython 3.14.7；
+- 目标位置：用户在真实验收时明确提供的 `CODEX_HOME` 或 `skills-root`，预检不得提前搜索、创建或猜测。
 
-该门只决定环境是否适合冻结候选，不证明安装、发现或兼容成功。结果缺失或矛盾时，Mac 兼容状态保持 `NOT_READY`，但不影响 3.0.3 的现有发布。
+该门只固定候选设计和文档基线，不证明用户的 Mac 已就绪，也不证明安装、发现或兼容成功。真实 macOS 版本、构建号、架构、Python、Codex App 版本、目标目录和文件系统事实全部推迟到候选资产下载后的 Mac 技术验证与实装验收中读取。
 
 ### 8.1 WSL 本地技术验证
 
@@ -239,7 +241,7 @@ Mac 任务生成一份不含用户名、绝对路径、凭据或业务数据的�
 
 1. 从 `MsrWang/vibe-leader` 的 GitHub 候选 Release 下载 `Vibe-Leader-3.1.0-GitHub.zip`、独立 `release_archive.py` 和 `SHA256SUMS.txt`；
 2. 核对下载摘要与发布摘要一致，并在新空目录中完成安全解包验证；
-3. 显式选择本次 `CODEX_HOME` 或 `skills-root`，并核对与只读就绪门一致；
+3. 显式选择本次 `CODEX_HOME` 或 `skills-root`，并核对当前真实事实符合固定参考配置合同；
 4. 取得新的精确安装或升级批准后执行一次；
 5. 核对安装 manifest 与候选树一致；
 6. 重启或刷新 Codex App，并在新任务中确认唯一 locator、显示名和显式调用；
@@ -279,7 +281,8 @@ Mac 任务生成一份不含用户名、绝对路径、凭据或业务数据的�
 | 当前 WSL 无法证明 Darwin 原语真实行为 | WSL 只做合同测试；Apple Silicon Mac 完成真实技术验证 |
 | Codex App 的实际 Skill 根与常见路径不同 | 预检要求显式 `skills-root`，安装后按真实 locator 验证 |
 | APFS 以外文件系统不支持安全交换 | 在目标文件系统探针；降为 `NOREPLACE_ONLY` 或停止 |
-| Mac 缺少 Python 3.11+ | 预检停止并报告，不自动安装依赖 |
+| Mac 的 Python 低于 3.11 | 预检返回 `PYTHON_UPDATE_REQUIRED` 并停止；文档要求升级，不自动安装依赖 |
+| Mac 使用非 CPython、预发布版或尚未验证的 3.15+ | 预检返回 `RUNTIME_UNVERIFIED`；先完成独立验证再扩大支持范围 |
 | macOS 读取实现引入安全退化 | 保持逐段 `dir_fd`、禁止跟随链接、身份复核和失败关闭 |
 | ZIP 解包覆盖文件或产生路径逃逸 | 使用确定性发行工具，解包前验证所有条目，只写新空目录 |
 | macOS 默认大小写不敏感导致条目碰撞 | 构建与验证都拒绝 Unicode 规范化和大小写折叠冲突 |
@@ -309,6 +312,10 @@ Mac 任务生成一份不含用户名、绝对路径、凭据或业务数据的�
 ## 13. 参考资料
 
 - [Python `os` 文档](https://docs.python.org/3/library/os.html)：平台能力常量与 `os.supports_dir_fd`。
+- [Python 3.14.7 发布说明](https://www.python.org/downloads/release/python-3147/)：本轮新安装推荐与参考验收运行时。
+- [Python 3.11.16 发布说明](https://www.python.org/downloads/release/python-31116/)：3.11 的安全维护阶段和支持边界。
+- [OpenAI macOS App 系统要求](https://help.openai.com/en/articles/9395554-what-are-the-system-requirements-for-the-chatgpt-macos-app)：包含 Codex 的当前桌面 App 要求 macOS 14，并支持 Apple Silicon M1+。
+- [Apple Mac mini (2026) 技术规格](https://support.apple.com/en-us/128108)：本轮 M6 参考验收机型。
 - [Apple `open(2)` 文档](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/open.2.html)：禁止跟随符号链接的系统语义。
 - [Apple 排他重命名能力](https://developer.apple.com/documentation/foundation/urlresourcevalues/volumesupportsexclusiverenaming)：`RENAME_EXCL` 的卷能力。
 - [Apple 交换重命名能力](https://developer.apple.com/documentation/foundation/urlresourcevalues/volumesupportsswaprenaming)：`RENAME_SWAP` 的卷能力。

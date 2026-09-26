@@ -48,6 +48,9 @@ SWITCH_BACKEND_EVIDENCE_SCHEMA_VERSION = 1
 TOGGLE_SCHEMA_VERSION = 1
 PREFLIGHT_SCHEMA_VERSION = 1
 PREFLIGHT_SELECTION_SOURCES = frozenset({"CODEX_HOME", "EXPLICIT_SKILLS_ROOT"})
+MIN_SUPPORTED_PYTHON = (3, 11, 0)
+MAX_EXCLUSIVE_SUPPORTED_PYTHON = (3, 15, 0)
+RECOMMENDED_PYTHON = "3.14.7"
 SKILL_NAME = "vibe-project-lead-zh"
 MANIFEST_NAME = "install-manifest.json"
 PREPARED_MANIFEST_NAME = "prepared-manifest.json"
@@ -3999,8 +4002,27 @@ def _platform_facts() -> dict[str, str]:
     return {
         "system": sys.platform,
         "machine": platform.machine().lower(),
+        "python_implementation": platform.python_implementation(),
         "python_version": platform.python_version(),
+        "python_releaselevel": sys.version_info.releaselevel,
     }
+
+
+def _python_runtime_reason(facts: dict[str, str]) -> str | None:
+    if (
+        facts.get("python_implementation") != "CPython"
+        or facts.get("python_releaselevel") != "final"
+    ):
+        return "RUNTIME_UNVERIFIED"
+    version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", facts.get("python_version", ""))
+    if version is None:
+        return "RUNTIME_UNVERIFIED"
+    parsed = tuple(map(int, version.groups()))
+    if parsed < MIN_SUPPORTED_PYTHON:
+        return "PYTHON_UPDATE_REQUIRED"
+    if parsed >= MAX_EXCLUSIVE_SUPPORTED_PYTHON:
+        return "RUNTIME_UNVERIFIED"
+    return None
 
 
 def build_preflight(
@@ -4059,9 +4081,9 @@ def build_preflight(
         reasons.append("PLATFORM_UNSUPPORTED")
     if facts.get("machine") != "arm64":
         reasons.append("ARCHITECTURE_UNSUPPORTED")
-    version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", facts.get("python_version", ""))
-    if version is None or tuple(map(int, version.groups())) < (3, 11, 0):
-        reasons.append("PYTHON_VERSION_UNSUPPORTED")
+    runtime_reason = _python_runtime_reason(facts)
+    if runtime_reason is not None:
+        reasons.append(runtime_reason)
 
     try:
         root = strict_existing_directory(Path(skills_root), "unsafe_skills_root")
