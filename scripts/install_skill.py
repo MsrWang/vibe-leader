@@ -51,6 +51,9 @@ PREPARED_MANIFEST_NAME = "prepared-manifest.json"
 AT_FDCWD = -100
 RENAME_NOREPLACE = 1
 RENAME_EXCHANGE = 2
+DARWIN_AT_FDCWD = -2
+DARWIN_RENAME_SWAP = 0x00000002
+DARWIN_RENAME_EXCL = 0x00000004
 RENAMEAT2_SYSCALLS = {
     "x86_64": 316,
     "amd64": 316,
@@ -2572,7 +2575,68 @@ def attest_switch_backend(
     )
 
 
+def _darwin_renameatx_np_direct(source: Path, destination: Path, flags: int) -> None:
+    if flags == RENAME_NOREPLACE:
+        native_flags = DARWIN_RENAME_EXCL
+    elif flags == RENAME_EXCHANGE:
+        native_flags = DARWIN_RENAME_SWAP
+    else:
+        raise InstallError("invalid_rename_flags", 4)
+
+    library = ctypes.CDLL(None, use_errno=True)
+    function = getattr(library, "renameatx_np", None)
+    if function is None:
+        reason = (
+            "exchange_unsupported"
+            if flags == RENAME_EXCHANGE
+            else "atomic_noreplace_unavailable"
+        )
+        raise InstallError(reason, 4)
+    function.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    function.restype = ctypes.c_int
+    result = function(
+        DARWIN_AT_FDCWD,
+        os.fsencode(source),
+        DARWIN_AT_FDCWD,
+        os.fsencode(destination),
+        native_flags,
+    )
+    if result == 0:
+        return
+
+    error_number = ctypes.get_errno()
+    if flags == RENAME_NOREPLACE and error_number == errno.EEXIST:
+        raise InstallError("target_exists")
+    if error_number in {
+        errno.ENOSYS,
+        errno.EINVAL,
+        errno.ENOTSUP,
+        getattr(errno, "EOPNOTSUPP", errno.ENOTSUP),
+    }:
+        reason = (
+            "exchange_unsupported"
+            if flags == RENAME_EXCHANGE
+            else "atomic_noreplace_unavailable"
+        )
+        raise InstallError(reason, 4)
+    reason = (
+        "exchange_probe_outcome_unknown"
+        if flags == RENAME_EXCHANGE
+        else "noreplace_probe_outcome_unknown"
+    )
+    raise InstallError(reason, 4, status="unknown")
+
+
 def rename_noreplace(source: Path, destination: Path) -> None:
+    if sys.platform == "darwin":
+        _darwin_renameatx_np_direct(source, destination, RENAME_NOREPLACE)
+        return
     library = ctypes.CDLL(None, use_errno=True)
     function = getattr(library, "renameat2", None)
     if function is None:
@@ -2618,6 +2682,9 @@ def rename_noreplace(source: Path, destination: Path) -> None:
 
 def renameat2_direct(source: Path, destination: Path, flags: int) -> None:
     """Call renameat2 without selecting or falling back to another backend."""
+    if sys.platform == "darwin":
+        _darwin_renameatx_np_direct(source, destination, flags)
+        return
     library = ctypes.CDLL(None, use_errno=True)
     function = getattr(library, "renameat2", None)
     if function is None:
@@ -2738,7 +2805,10 @@ def probe_noreplace_capability(root: Path) -> dict[str, Any]:
                     4,
                     status="unknown",
                 )
-            os.rename(right, left)
+            if sys.platform == "darwin":
+                renameat2_direct(right, left, RENAME_NOREPLACE)
+            else:
+                os.rename(right, left)
             restored = _probe_directory_snapshot(left)
             evidence["left_identity_restored"] = restored
             if right.exists() or right.is_symlink() or restored != before:

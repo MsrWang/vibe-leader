@@ -5,6 +5,7 @@
 
 import base64
 import copy
+import errno
 import importlib.util
 import hashlib
 import io
@@ -2276,6 +2277,207 @@ class InstallSkillTests(unittest.TestCase):
         self.assertEqual(marker.read_text(encoding="utf-8"), "keep")
         self.assertFalse(self.state_dir.exists())
         self.assert_neighbors_untouched()
+
+
+class DarwinRenameBackendTests(unittest.TestCase):
+    def call_backend(self, flags, result=0, error_number=0):
+        calls = []
+
+        def renameatx_np(from_fd, source, to_fd, destination, native_flags):
+            calls.append((from_fd, source, to_fd, destination, native_flags))
+            return result
+
+        function = mock.Mock(side_effect=renameatx_np)
+        self.backend_calls = calls
+        library = mock.Mock(renameatx_np=function)
+        with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=library) as load:
+            with mock.patch.object(INSTALLER.ctypes, "get_errno", return_value=error_number):
+                INSTALLER._darwin_renameatx_np_direct(
+                    Path("/tmp/source"), Path("/tmp/target"), flags
+                )
+        load.assert_called_once_with(None, use_errno=True)
+        self.assertEqual(
+            function.argtypes,
+            [
+                INSTALLER.ctypes.c_int,
+                INSTALLER.ctypes.c_char_p,
+                INSTALLER.ctypes.c_int,
+                INSTALLER.ctypes.c_char_p,
+                INSTALLER.ctypes.c_uint,
+            ],
+        )
+        self.assertIs(function.restype, INSTALLER.ctypes.c_int)
+        return calls
+
+    def test_darwin_noreplace_maps_to_rename_excl_once(self):
+        calls = self.call_backend(INSTALLER.RENAME_NOREPLACE)
+        self.assertEqual(
+            calls, [(-2, b"/tmp/source", -2, b"/tmp/target", 0x00000004)]
+        )
+
+    def test_darwin_exchange_maps_to_rename_swap_once(self):
+        calls = self.call_backend(INSTALLER.RENAME_EXCHANGE)
+        self.assertEqual(
+            calls, [(-2, b"/tmp/source", -2, b"/tmp/target", 0x00000002)]
+        )
+
+    def test_darwin_noreplace_eexist_maps_target_exists(self):
+        with self.assertRaises(INSTALLER.InstallError) as caught:
+            self.call_backend(INSTALLER.RENAME_NOREPLACE, -1, errno.EEXIST)
+        self.assertEqual(caught.exception.reason, "target_exists")
+        self.assertEqual(len(self.backend_calls), 1)
+
+    def test_darwin_exchange_unsupported_errno_maps_without_retry(self):
+        for error_number in {
+            errno.ENOSYS,
+            errno.EINVAL,
+            errno.ENOTSUP,
+            getattr(errno, "EOPNOTSUPP", errno.ENOTSUP),
+        }:
+            with self.subTest(error_number=error_number):
+                with self.assertRaises(INSTALLER.InstallError) as caught:
+                    self.call_backend(INSTALLER.RENAME_EXCHANGE, -1, error_number)
+                self.assertEqual(caught.exception.reason, "exchange_unsupported")
+                self.assertEqual(len(self.backend_calls), 1)
+
+    def test_darwin_noreplace_unsupported_errno_fails_closed(self):
+        with self.assertRaises(INSTALLER.InstallError) as caught:
+            self.call_backend(INSTALLER.RENAME_NOREPLACE, -1, errno.ENOSYS)
+        self.assertEqual(caught.exception.reason, "atomic_noreplace_unavailable")
+        self.assertEqual(len(self.backend_calls), 1)
+
+    def test_darwin_other_errno_is_unknown_for_each_operation(self):
+        for flags, expected in (
+            (INSTALLER.RENAME_EXCHANGE, "exchange_probe_outcome_unknown"),
+            (INSTALLER.RENAME_NOREPLACE, "noreplace_probe_outcome_unknown"),
+        ):
+            with self.subTest(flags=flags):
+                with self.assertRaises(INSTALLER.InstallError) as caught:
+                    self.call_backend(flags, -1, errno.EIO)
+                self.assertEqual(caught.exception.reason, expected)
+                self.assertEqual(caught.exception.status, "unknown")
+                self.assertEqual(len(self.backend_calls), 1)
+
+    def test_darwin_rejects_other_flags_before_loading_libc(self):
+        with mock.patch.object(INSTALLER.ctypes, "CDLL") as load:
+            with self.assertRaises(INSTALLER.InstallError):
+                INSTALLER._darwin_renameatx_np_direct(
+                    Path("/tmp/source"), Path("/tmp/target"), 0
+                )
+        load.assert_not_called()
+
+    def test_darwin_public_seams_dispatch_to_native_backend(self):
+        with mock.patch.object(INSTALLER.sys, "platform", "darwin"):
+            with mock.patch.object(INSTALLER, "_darwin_renameatx_np_direct") as native:
+                INSTALLER.rename_noreplace(Path("/tmp/source"), Path("/tmp/target"))
+                INSTALLER.renameat2_direct(
+                    Path("/tmp/source"), Path("/tmp/target"), INSTALLER.RENAME_EXCHANGE
+                )
+        self.assertEqual(
+            native.call_args_list,
+            [
+                mock.call(
+                    Path("/tmp/source"), Path("/tmp/target"), INSTALLER.RENAME_NOREPLACE
+                ),
+                mock.call(
+                    Path("/tmp/source"), Path("/tmp/target"), INSTALLER.RENAME_EXCHANGE
+                ),
+            ],
+        )
+
+    def test_darwin_exchange_probe_swaps_and_restores_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            calls = []
+            real_rename = os.rename
+
+            def native(_from_fd, source, _to_fd, destination, flags):
+                self.assertEqual(flags, 0x00000002)
+                left = Path(os.fsdecode(source))
+                right = Path(os.fsdecode(destination))
+                scratch = left.parent / "scratch"
+                real_rename(left, scratch)
+                real_rename(right, left)
+                real_rename(scratch, right)
+                calls.append(flags)
+                return 0
+
+            library = mock.Mock(renameatx_np=mock.Mock(side_effect=native))
+            with mock.patch.object(INSTALLER.sys, "platform", "darwin"):
+                with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=library):
+                    capability, evidence = INSTALLER.probe_switch_capability(
+                        Path(temporary)
+                    )
+
+        self.assertEqual(capability, "EXCHANGE_SUPPORTED")
+        self.assertEqual(calls, [0x00000002, 0x00000002])
+        self.assertTrue(evidence["postconditions_verified"])
+        self.assertTrue(evidence["restored"])
+
+    def test_darwin_exchange_unsupported_can_prove_noreplace_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            calls = []
+            real_rename = os.rename
+
+            def native(_from_fd, source, _to_fd, destination, flags):
+                calls.append(flags)
+                if flags == 0x00000002:
+                    return -1
+                real_rename(os.fsdecode(source), os.fsdecode(destination))
+                return 0
+
+            library = mock.Mock(renameatx_np=mock.Mock(side_effect=native))
+            with mock.patch.object(INSTALLER.sys, "platform", "darwin"):
+                with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=library):
+                    with mock.patch.object(
+                        INSTALLER.ctypes, "get_errno", return_value=errno.ENOTSUP
+                    ):
+                        capability, evidence = INSTALLER.probe_switch_capability(
+                            Path(temporary)
+                        )
+
+        self.assertEqual(capability, "NOREPLACE_ONLY")
+        self.assertEqual(calls, [0x00000002, 0x00000004, 0x00000004])
+        self.assertTrue(evidence["postconditions_verified"])
+        self.assertTrue(evidence["restored"])
+
+    def test_darwin_probe_contradiction_returns_unknown_without_retry(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            native = mock.Mock(return_value=0)
+            library = mock.Mock(renameatx_np=native)
+            with mock.patch.object(INSTALLER.sys, "platform", "darwin"):
+                with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=library):
+                    capability, evidence = INSTALLER.probe_switch_capability(
+                        Path(temporary)
+                    )
+
+        self.assertEqual(capability, "UNKNOWN")
+        self.assertEqual(native.call_count, 1)
+        self.assertFalse(evidence["postconditions_verified"])
+        self.assertFalse(evidence["restored"])
+
+    def test_darwin_probe_cleanup_failure_preserves_probe_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            native = mock.Mock(return_value=0)
+            library = mock.Mock(renameatx_np=native)
+            with mock.patch.object(INSTALLER.sys, "platform", "darwin"):
+                with mock.patch.object(INSTALLER.ctypes, "CDLL", return_value=library):
+                    with mock.patch.object(
+                        INSTALLER.tempfile.TemporaryDirectory,
+                        "_rmtree",
+                        side_effect=OSError(errno.EACCES, "blocked"),
+                    ):
+                        capability, evidence = INSTALLER.probe_switch_capability(
+                            Path(temporary)
+                        )
+            probe_roots = list(Path(temporary).glob(".vibe-project-lead-zh-exchange-probe-*"))
+            self.assertEqual(len(probe_roots), 1)
+            self.assertTrue((probe_roots[0] / "left" / "marker").is_file())
+            self.assertTrue((probe_roots[0] / "right" / "marker").is_file())
+
+        self.assertEqual(capability, "UNKNOWN")
+        self.assertEqual(native.call_count, 1)
+        self.assertFalse(evidence["postconditions_verified"])
+        self.assertFalse(evidence["restored"])
 
 
 class UpgradePreflightTests(unittest.TestCase):
