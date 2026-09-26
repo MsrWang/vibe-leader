@@ -1,6 +1,6 @@
 # 限制、数据流与验证边界
 
-2.3 已完成独立源码交付和限定环境的用户验收。3.1 当前是 macOS 本地候选准备，真实 Mac 验收尚未完成；候选边界见[3.1 说明](release-3.1.0.md)。本文保留产品限制；既有实际证据范围见[2.3 验证说明](release-2.3.md)。
+2.3 已完成独立源码交付和限定环境的用户验收。3.1 的生命周期状态由外部 Release 元数据以及经签名或平台回读的收据建立；兼容与验收边界见[3.1 说明](release-3.1.0.md)。本文保留产品限制；既有实际证据范围见[2.3 验证说明](release-2.3.md)。
 
 ## 指令不是强制沙箱
 
@@ -26,10 +26,10 @@ Skill 文本会参与上下文。所选模型服务、账户方式与保留政�
 
 | 范围 | 当前限制 |
 |---|---|
-| 源码工具 | 稳定版 CPython 3.11–3.14，公开下限为 Python 3.11+；新安装推荐 CPython 3.14.7；涉及 Git 身份需要 Git；这不是每个 Python/系统组合均已验证 |
+| 源码工具 | 稳定版 CPython 3.11–3.14（最低 3.11；新安装推荐 3.14.7）；3.15+ 为 `RUNTIME_UNVERIFIED`；涉及 Git 身份需要 Git；这不是每个 Python/系统组合均已验证 |
 | Skill 发现 | 本安装器固定 `CODEX_HOME/skills`；在 Windows Codex Desktop + Ubuntu/WSL 已验证发现、显式加载和唯一安装内容。其他宿主须另验 |
-| macOS 3.1 设计目标 | macOS 14+、Apple Silicon M1+、`arm64`；2026 Mac mini（M6）、macOS 27 稳定补丁版本和 CPython 3.14.7 是参考验收目标，真实验收前不得写成已验证 |
-| Intel Mac 未验收 | `x86_64` 会由预检拒绝；本候选没有证明 Intel Mac、Rosetta 或混合架构 Python |
+| macOS 3.1 设计目标 | macOS 14+、Apple Silicon M1+、`arm64`；2026 Mac mini（M6）仅为参考验收目标，不是已验证结论；参考配置还包括 macOS 27 稳定补丁版本和 CPython 3.14.7 |
+| Intel Mac 未验收 | `x86_64` 会由预检拒绝；3.1 没有证明 Intel Mac、Rosetta 或混合架构 Python |
 | Mac 存储 | 原生目标按 APFS/Darwin 原语设计；网络盘、外接盘、非 APFS 和大小写敏感组合均需单独验证 |
 | Windows / WSL | 两者可能使用不同安装根/配置；不承诺 Windows-native、所有 DrvFS 或跨版本组合全面支持 |
 | 文件权限 | `target-observed` 的内容一致性不等于 Windows ACL 或 POSIX mode 保真；必须看实际 mode policy 与证据 |

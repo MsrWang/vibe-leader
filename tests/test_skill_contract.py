@@ -523,48 +523,111 @@ class SkillContractTests(unittest.TestCase):
         )
 
     def test_3_1_public_materials_define_macos_candidate_boundary(self):
-        release_path = ROOT / "docs" / "release-3.1.0.md"
-        acceptance_path = ROOT / "docs" / "macos-acceptance-3.1.md"
-        self.assertTrue(release_path.is_file(), "3.1 release note is missing")
-        self.assertTrue(acceptance_path.is_file(), "Mac acceptance guide is missing")
-        release = release_path.read_text(encoding="utf-8")
-        acceptance = acceptance_path.read_text(encoding="utf-8")
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        limitations = (ROOT / "docs" / "limitations.md").read_text(
-            encoding="utf-8"
-        )
-        public_materials = release + acceptance + readme + limitations
+        paths = {
+            "README.md": ROOT / "README.md",
+            "CHANGELOG.md": ROOT / "CHANGELOG.md",
+            "release-3.1.0.md": ROOT / "docs" / "release-3.1.0.md",
+            "macos-acceptance-3.1.md": ROOT / "docs" / "macos-acceptance-3.1.md",
+            "getting-started.md": ROOT / "docs" / "getting-started.md",
+            "limitations.md": ROOT / "docs" / "limitations.md",
+            "demo/README.md": ROOT / "demo" / "README.md",
+            "demo/index.html": ROOT / "demo" / "index.html",
+        }
+        materials = {}
+        for name, path in paths.items():
+            with self.subTest(name=name, contract="file-exists"):
+                self.assertTrue(path.is_file(), f"missing public material: {name}")
+            materials[name] = path.read_text(encoding="utf-8")
+
+        bounded_runtime = "稳定版 CPython 3.11–3.14（最低 3.11；新安装推荐 3.14.7）"
+        reference_boundary = "2026 Mac mini（M6）仅为参考验收目标，不是已验证结论"
+        for name, text in materials.items():
+            for required in (
+                bounded_runtime,
+                reference_boundary,
+                "不接入外部 Jev",
+                "13 个文件",
+            ):
+                with self.subTest(name=name, required=required):
+                    self.assertIn(required, text)
+            for forbidden in (
+                "Python 3.11+",
+                "稳定版 Python 3.11+",
+                "当前处于本地候选冻结阶段",
+                "候选资产尚未发布",
+                "当前仅完成本地准备",
+                "当前文档只完成第一个门",
+                "3.0.3 继续作为稳定版",
+                "3.0.3 仍是稳定版",
+                "真实 Mac 验收尚未完成",
+                "当前仍是候选准备",
+                "3.1.0 macOS 候选：",
+                "<span>3.1.0 候选</span>",
+                "页面按 3.0.3 标明当前版本",
+                "本候选没有证明 Intel Mac",
+                "WSL 模拟测试已证明 Mac 原生通过",
+                "Codex App 验收已完成",
+                "结论：Mac 本机就绪",
+                "结论：兼容验收通过",
+            ):
+                with self.subTest(name=name, forbidden=forbidden):
+                    self.assertNotIn(forbidden, text)
+
+        release = materials["release-3.1.0.md"]
+        acceptance = materials["macos-acceptance-3.1.md"]
+        limitations = materials["limitations.md"]
+        for gate in (
+            "本地候选冻结",
+            "GitHub 候选 prerelease",
+            "Mac 候选实装验收",
+            "GitHub 正式发布",
+            "Mac 稳定版实装",
+            "Hugging Face 同步",
+        ):
+            with self.subTest(gate=gate):
+                self.assertIn(gate, release)
+        self.assertIn("外部动作分别批准", release + acceptance)
+        self.assertIn("生命周期状态由外部 Release 元数据", release)
+        self.assertIn("经签名或平台回读的收据", release)
 
         for required in (
-            "Apple Silicon",
-            "Python 3.11+",
-            "CPython 3.14.7",
-            "2026 Mac mini（M6）",
-            "Vibe-Leader-3.1.0-GitHub.zip",
-            "release_archive.py",
-            "SHA256SUMS.txt",
-            "不接入外部 Jev",
-            "13 个文件",
+            "https://github.com/MsrWang/vibe-leader.git",
+            "MsrWang/vibe-leader",
+            "api.github.com/repos/MsrWang/vibe-leader/releases/tags/",
+            "assets[].digest",
+            "三个下载资产",
+            "SHA256SUMS.txt 不是自身信任根",
+            'git show "$VIBE_EXPECTED_COMMIT:scripts/release_archive.py"',
+            "cmp",
+            'CODEX_HOME="$VIBE_TEMP_CODEX_HOME"',
+            'CODEX_HOME="$VIBE_REAL_CODEX_HOME"',
+            "python3 -B -m unittest -v tests.test_evidence_filter",
+            "普通文件",
+            "符号链接拒绝",
+            "特殊文件拒绝",
+            "来源变更",
+            'VIBE_BASELINE_TAG="v3.0.3"',
+            "prepare-upgrade",
+            "inspect-upgrade",
+            "restore-version",
+            "原始 manifest 和状态目录",
+            "清理与残留",
+            "私有原始证据",
+            "公开去标识收据",
+            "绝对路径只保留在私有原始证据",
+            "环境、安装前状态或资产摘要",
+            "重新执行真实恢复演练",
+            "候选回滚",
+            "稳定版实装",
         ):
-            with self.subTest(required=required):
-                self.assertIn(required, public_materials)
-
-        self.assertIn("候选回滚", acceptance)
-        self.assertIn("稳定版实装", acceptance)
+            with self.subTest(acceptance_required=required):
+                self.assertIn(required, acceptance)
         self.assertIn("Intel Mac 未验收", limitations)
-        self.assertIn("WSL 测试不是 Mac 原生验证", public_materials)
+        self.assertIn("WSL 测试不是 Mac 原生验证", "".join(materials.values()))
         self.assertIn(
             "用户观察前不得声称 Codex App 验收完成",
-            public_materials,
+            "".join(materials.values()),
         )
-        for unsupported_claim in (
-            "WSL 模拟测试已证明 Mac 原生通过",
-            "Codex App 验收已完成",
-            "结论：Mac 本机就绪",
-            "结论：兼容验收通过",
-        ):
-            with self.subTest(unsupported_claim=unsupported_claim):
-                self.assertNotIn(unsupported_claim, public_materials)
 
     def test_openai_metadata_is_chinese_and_explicit_only(self):
         text = read("agents/openai.yaml")

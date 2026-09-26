@@ -12,7 +12,7 @@ short_description: Codex 中文研发主管 Skill 的合成使用示例与调用
 
 # Vibe Leader — Codex Skill 使用示例
 
-本源码页面展示 Vibe Leader 3.1.0 候选在 Codex 项目任务中的预期工作方式。Vibe Leader 是可安装的中文研发主管 Skill，技术标识为 `vibe-project-lead-zh`。3.1 的通用设计目标为 macOS 14+、Apple Silicon M1+ 和稳定版 Python 3.11+；CPython 3.14.7 与 2026 Mac mini（M6）是参考验收目标，真实 Mac 验收尚未完成。3.0.3 仍是稳定版，并保留可选的本地证据筛选器；静态示例不会运行筛选器。
+本源码页面展示 Vibe Leader 3.1.0 在 Codex 项目任务中的预期工作方式。Vibe Leader 是可安装的中文研发主管 Skill，技术标识为 `vibe-project-lead-zh`。3.1 的通用设计目标为 macOS 14+、Apple Silicon M1+ 和稳定版 CPython 3.11–3.14（最低 3.11；新安装推荐 3.14.7），3.15+ 保持 `RUNTIME_UNVERIFIED`。2026 Mac mini（M6）仅为参考验收目标，不是已验证结论；Mac 原生证据须按专用指南建立。可安装 Skill 为 13 个文件，本版不接入外部 Jev，并保留可选的本地证据筛选器；静态示例不会运行筛选器。生命周期状态由外部 Release 元数据和经签名或平台回读的收据建立。
 
 ## 如何查看
 
@@ -30,7 +30,7 @@ short_description: Codex 中文研发主管 Skill 的合成使用示例与调用
 使用 $vibe-project-lead-zh。先绑定当前项目，只读调查后告诉我目标、风险和最小下一步，暂不修改。
 ```
 
-已验证稳定版范围仍是 Windows Codex Desktop 配合 Ubuntu/WSL；WSL 测试不是 Mac 原生验证。3.1 候选必须另做 Mac 技术检查和 Codex App 用户观察。Skill 不是 OS 沙箱，模型可能偏离流程；本版不接入外部 Jev。静态案例说明预期规则，不运行本地证据筛选，也不证明长期自然任务表现。版本与源码以 [GitHub Releases](https://github.com/MsrWang/vibe-leader/releases) 为准。
+既有验证证据覆盖 Windows Codex Desktop 配合 Ubuntu/WSL；WSL 测试不是 Mac 原生验证。3.1 的 Mac 技术检查和 Codex App 用户观察须另行建立。Skill 不是 OS 沙箱，模型可能偏离流程；本版不接入外部 Jev。静态案例说明预期规则，不运行本地证据筛选，也不证明长期自然任务表现。版本与源码以 [GitHub Releases](https://github.com/MsrWang/vibe-leader/releases) 为准。
 
 ## 数据与运行边界
 

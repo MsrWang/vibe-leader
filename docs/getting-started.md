@@ -1,6 +1,6 @@
 # Vibe Leader 安装与使用指南（技术向）
 
-3.0 的日常请求见[日常项目用法](project-workflow.md)，感觉方向不对时可直接使用[独立纠偏卡](deviation-correction.md)，判断修改位置与影响见[维护说明](maintenance-and-change.md)。3.1.0 为 Apple Silicon Mac 增加平台原语、只读预检和确定性候选资产；当前仍是候选准备，真实 Mac 验收按[专用指南](macos-acceptance-3.1.md)执行，证据边界见[3.1 说明](release-3.1.0.md)。3.0.3 继续作为稳定版，并为大文件、多文件和长日志调查提供可选的本地证据筛选器；3.0.2 或更早安装需要按本页受控升级边界更新实际安装才能获得这两个新文件，原始说明见[3.0.3 说明](release-3.0.3.md)。3.0.2 的轻量纠偏要求 3.0.1 或更早安装按同一受控升级边界更新，原始说明见[3.0.2 说明](release-3.0.2.md)。
+3.0 的日常请求见[日常项目用法](project-workflow.md)，感觉方向不对时可直接使用[独立纠偏卡](deviation-correction.md)，判断修改位置与影响见[维护说明](maintenance-and-change.md)。3.1.0 为 Apple Silicon Mac 增加平台原语、只读预检和确定性发行资产；生命周期状态由外部 Release 元数据以及经签名或平台回读的收据建立，Mac 验收按[专用指南](macos-acceptance-3.1.md)执行，证据边界见[3.1 说明](release-3.1.0.md)。可安装 Skill 仍为 13 个文件，3.1 不接入外部 Jev。3.0.3 为大文件、多文件和长日志调查提供可选的本地证据筛选器；3.0.2 或更早安装需要按本页受控升级边界更新实际安装才能获得这两个新文件，原始说明见[3.0.3 说明](release-3.0.3.md)。3.0.2 的轻量纠偏要求 3.0.1 或更早安装按同一受控升级边界更新，原始说明见[3.0.2 说明](release-3.0.2.md)。
 
 **面向负责安装、维护或开发接入的人。** 本页说明环境要求、安装命令、结果核验、停用与恢复，以及可选源码工具；阅读时需要能够使用终端，并确认自己电脑上的 Python、Git 和 Codex 配置目录。
 
@@ -20,9 +20,9 @@
 
 ## 1. 准备与兼容检查
 
-你需要一个能发现并显式调用本 Skill 的 Codex 宿主；源码安装器需要稳定版 CPython 3.11–3.14，公开下限为 Python 3.11+，新安装推荐 CPython 3.14.7。Git 项目需要 Git。不需要维护者的账户配置、旧审批或私人插件库存。
+你需要一个能发现并显式调用本 Skill 的 Codex 宿主；源码安装器需要稳定版 CPython 3.11–3.14（最低 3.11；新安装推荐 3.14.7），3.15+ 保持 `RUNTIME_UNVERIFIED`。Git 项目需要 Git。不需要维护者的账户配置、旧审批或私人插件库存。
 
-3.1 的通用设计目标为 macOS 14+、Apple Silicon M1+、`arm64`。2026 Mac mini（M6）、验收当日 macOS 27 稳定补丁版本和 CPython 3.14.7 是固定参考验收目标，真实验收前不是已验证环境。Intel Mac、Windows 原生、网络盘和外接盘未由本候选验收。
+3.1 的通用设计目标为 macOS 14+、Apple Silicon M1+、`arm64`。2026 Mac mini（M6）仅为参考验收目标，不是已验证结论；固定参考配置还包括验收当日 macOS 27 稳定补丁版本和 CPython 3.14.7。Intel Mac、Windows 原生、网络盘和外接盘需要单独验证。
 
 当前安装器仅接受已经存在、无符号链接且已规范化的 `CODEX_HOME` 及其 `skills` 子目录。它不会替你查明 Windows/WSL 哪份配置正在生效，也不会创建另一套宿主配置。
 
@@ -47,7 +47,7 @@ python3 -B scripts/install_skill.py install --help
 python3 -B scripts/install_skill.py verify --help
 ```
 
-3.1 候选从 Release 下载时必须同时取得 `Vibe-Leader-3.1.0-GitHub.zip`、`release_archive.py` 和 `SHA256SUMS.txt`，先绑定候选提交、核验摘要并安全解包，再运行安装器。完整 Mac 流程见[验收指南](macos-acceptance-3.1.md)；不要直接双击 ZIP 后把解压成功当成来源验证。
+3.1 从候选或正式 Release 下载时必须同时取得 `Vibe-Leader-3.1.0-GitHub.zip`、`release_archive.py` 和 `SHA256SUMS.txt`，先绑定相应标签提交、核验摘要并安全解包，再运行安装器。完整 Mac 流程见[验收指南](macos-acceptance-3.1.md)；不要直接双击 ZIP 后把解压成功当成来源验证。
 
 对已经确认的 Mac 安装根，可先运行不写文件的预检：
 

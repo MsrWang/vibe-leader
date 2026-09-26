@@ -6,7 +6,7 @@ If a copy of the MPL was not distributed with this file, You can obtain one at h
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Vibe Leader 3.1.0 macOS 候选：Codex 中文项目主管 Skill 的合成示例、兼容设计与验收边界。">
+  <meta name="description" content="Vibe Leader 3.1.0 macOS：Codex 中文项目主管 Skill 的合成示例、兼容设计与验收边界。">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Vibe Leader · Codex Skill 使用示例</title>
@@ -17,10 +17,10 @@ If a copy of the MPL was not distributed with this file, You can obtain one at h
   <a class="skip-link" href="#main">跳到使用示例</a>
   <main id="main">
     <header class="app-heading">
-      <div><h1>Vibe Leader <span>3.1.0 候选</span></h1><p>Codex 中文项目主管 Skill · <code>vibe-project-lead-zh</code></p></div>
+      <div><h1>Vibe Leader <span>3.1.0</span></h1><p>Codex 中文项目主管 Skill · <code>vibe-project-lead-zh</code></p></div>
       <a href="https://github.com/MsrWang/vibe-leader" target="_blank" rel="noopener noreferrer">GitHub 源码与安装</a>
     </header>
-    <p class="context-note">实际使用在你自己的 Codex 项目中完成。这里展示 3.1.0 候选的预期规则与预先编写的合成示例；3.0.3 仍是稳定版。本页不调用模型、不运行本地证据筛选器或执行项目操作，也不证明 Mac 原生通过、Codex App 验收或长期行为。</p>
+    <p class="context-note">实际使用在你自己的 Codex 项目中完成。这里展示 3.1.0 的预期规则与预先编写的合成示例；生命周期状态由外部 Release 元数据和经签名或平台回读的收据建立。本页不调用模型、不运行本地证据筛选器或执行项目操作，也不证明 Mac 原生通过、Codex App 验收或长期行为。</p>
     <div class="tabs" role="tablist" aria-label="使用文档">
       <button type="button" id="tab-examples" role="tab" aria-selected="true" aria-controls="panel-examples" tabindex="0">使用示例</button>
       <button type="button" id="tab-setup" role="tab" aria-selected="false" aria-controls="panel-setup" tabindex="-1">安装与调用</button>
@@ -58,12 +58,12 @@ If a copy of the MPL was not distributed with this file, You can obtain one at h
     <section id="panel-limits" role="tabpanel" aria-labelledby="tab-limits" tabindex="0" hidden>
       <h2>版本与使用边界</h2>
       <dl class="limits-list">
-        <div><dt>支持范围</dt><dd>对应 Vibe Leader 3.1.0 候选。macOS 14+、Apple Silicon M1+ 和稳定版 Python 3.11+ 是设计目标；CPython 3.14.7 与 2026 Mac mini（M6）是参考验收目标。真实 Mac 技术检查与 Codex App 用户观察尚未完成；3.0.3 继续作为稳定版。</dd></div>
+        <div><dt>支持范围</dt><dd>对应 Vibe Leader 3.1.0。macOS 14+、Apple Silicon M1+ 和稳定版 CPython 3.11–3.14（最低 3.11；新安装推荐 3.14.7）是设计目标，3.15+ 为 RUNTIME_UNVERIFIED；2026 Mac mini（M6）仅为参考验收目标，不是已验证结论。可安装 Skill 是 13 个文件，本版不接入外部 Jev；Mac 技术检查与 Codex App 用户观察须按专用指南建立。</dd></div>
         <div><dt>示例性质</dt><dd>这些文字用于理解流程；不是实际会话回放、在线模型、性能评测或用户验收记录。复制提示词后，需要在自己的 Codex 中按真实目标调整并使用。</dd></div>
         <div><dt>权限边界</dt><dd>Skill 是工作指令，不是 OS 沙箱。模型可能偏离流程；实际工具权限、目录与操作影响仍须核对。测试通过不能代替真实用户接受。</dd></div>
         <div><dt>数据去向</dt><dd>本页不接模型、不收代码或 Token、不自建追踪、不保存会话；复制按钮仅写入选定的合成文本，不读取剪贴板。托管平台有自身政策；实际 Codex 可能把上下文发送给配置的模型服务。</dd></div>
       </dl>
-      <p><a href="https://github.com/MsrWang/vibe-leader/blob/main/docs/release-3.1.0.md" target="_blank" rel="noopener noreferrer">查看 3.1 候选边界</a> · <a href="https://github.com/MsrWang/vibe-leader/blob/main/docs/release-3.0.3.md" target="_blank" rel="noopener noreferrer">查看 3.0.3 稳定版说明</a> · <a href="https://github.com/MsrWang/vibe-leader/blob/main/docs/limitations.md" target="_blank" rel="noopener noreferrer">查看完整限制与验证范围</a></p>
+      <p><a href="https://github.com/MsrWang/vibe-leader/blob/main/docs/release-3.1.0.md" target="_blank" rel="noopener noreferrer">查看 3.1 边界</a> · <a href="https://github.com/MsrWang/vibe-leader/blob/main/docs/release-3.0.3.md" target="_blank" rel="noopener noreferrer">查看 3.0.3 说明</a> · <a href="https://github.com/MsrWang/vibe-leader/blob/main/docs/limitations.md" target="_blank" rel="noopener noreferrer">查看完整限制与验证范围</a></p>
     </section>
     <noscript><div class="no-script">当前未启用 JavaScript，页签、案例切换和复制按钮不可用。你仍可阅读上方完整启动示例；错误项目时应停止并在新任务重新绑定，验收时应等待真实用户检查。完整安装和限制见 GitHub 文档。</div></noscript>
     <footer><span>Jason Wong · MPL-2.0</span><span>源码与版本在 GitHub；项目执行在 Codex。</span></footer>

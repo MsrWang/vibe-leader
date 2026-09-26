@@ -986,6 +986,70 @@ Expected: 两次构建逐字节一致；`verify` 输出 `status=VERIFIED` 并绑
 
 ---
 
+### Task 6R: 审查修订公开信任链与 Mac 原生验收
+
+**Trigger:** Task 6 的独立审查确认公开材料存在信任根、临时环境绑定、原生技术检查、升级恢复演练、收据隐私、稳定版恢复条件和时间无关表述缺口。修订必须形成新提交，不改写 Task 6 提交 `53f2255c04b8d0e3b1387e52b5d464e24dcdf354`。
+
+**Files:**
+- Modify: `README.md`
+- Modify: `CHANGELOG.md`
+- Modify: `docs/release-3.1.0.md`
+- Modify: `docs/macos-acceptance-3.1.md`
+- Modify: `docs/getting-started.md`
+- Modify: `docs/limitations.md`
+- Modify: `demo/README.md`
+- Modify: `demo/index.html`
+- Modify: `tests/test_skill_contract.py`
+- Modify: `docs/superpowers/plans/2026-09-26-vibe-leader-3.1-macos-compatibility.md`
+
+- [ ] **Step 1: 扩展逐文件公开合同并确认 RED**
+
+逐一读取八个公开文件，要求每个文件都使用有上界的稳定版 CPython 3.11–3.14 表述，并把 M6 保持为参考验收目标而非已验证结论。单独要求发行说明覆盖六门、外部动作独立批准和生命周期元数据；要求 Mac 指南覆盖公开仓库/标签、GitHub Release API 三资产 digest 回读、独立脚本与固定提交字节比较、临时与真实 `CODEX_HOME`、原生筛选测试、3.0.3→3.1 隔离升级/检查/恢复、私有原始证据与公开去标识收据、清理残留，以及环境或状态漂移后的稳定版恢复复演。
+
+Run:
+
+```bash
+python3 -B -m unittest -v \
+  tests.test_skill_contract.SkillContractTests.test_3_1_public_materials_define_macos_candidate_boundary
+```
+
+Expected: FAIL，且失败来自上述公开合同尚未满足。
+
+- [ ] **Step 2: 修订公开信任链和验收流程**
+
+Mac 指南必须显式绑定 `https://github.com/MsrWang/vibe-leader.git`、`MsrWang/vibe-leader` 与目标标签；从 GitHub Release API 回读三个资产各自的 `assets[].digest` 并与下载字节比较。`SHA256SUMS.txt` 不能成为自身信任根。执行下载的 `release_archive.py` 前，先与 `VIBE_EXPECTED_COMMIT:scripts/release_archive.py` 的可信 Git 字节逐字节比较。
+
+所有隔离安装、核验、升级、检查和恢复命令显式使用对应临时 `CODEX_HOME`；所有真实操作显式使用已确认的真实 `CODEX_HOME`。原生 Mac 技术检查运行完整证据筛选套件，并单列普通文件、符号链接拒绝、特殊文件拒绝和来源变更覆盖。第二个隔离临时根从公共 `v3.0.3` 安装，依次执行 `prepare-upgrade`、`upgrade`、`inspect-upgrade`、`restore-version`，并比较原始 manifest 与完整状态目录。
+
+私有原始证据保留真实路径和完整收据，只存放在用户核对的私有位置；公开去标识收据只包含摘要、状态和有界 locator 证据。清理前后记录验收目录及残留，失败时保留现场。正式版实装只有在候选组合完全相同的情况下才能复用候选恢复证据；环境、安装前状态或资产摘要变化时必须重新完成真实恢复演练。
+
+八个公开文件使用时间无关的包内表述。当前候选、正式、latest 或平台同步状态只由外部 Release 元数据及经签名或平台回读的收据建立。运行时统一写为稳定版 CPython 3.11–3.14（最低 3.11；新安装推荐 3.14.7），3.15+ 保持 `RUNTIME_UNVERIFIED`。
+
+- [ ] **Step 3: GREEN、静态命令检查与回归**
+
+Run:
+
+```bash
+python3 -B -m unittest -v \
+  tests.test_skill_contract.SkillContractTests.test_3_1_public_materials_define_macos_candidate_boundary
+```
+
+提取 `docs/macos-acceptance-3.1.md` 中每个 Bash 代码块并分别执行 `bash -n`。运行 Task 6 Step 4 聚焦套件和 Step 5 完整套件；完整套件显式取消真实 `CODEX_HOME`。扫描八个公开文件中的私人绝对路径、凭据/Token 形态、无上界 Python 说法、虚假 Mac 成功和当前阶段陈述，并运行 `git diff --check`。
+
+- [ ] **Step 4: 提交审查修订并等待源码复审**
+
+```bash
+git add README.md CHANGELOG.md docs/release-3.1.0.md \
+  docs/macos-acceptance-3.1.md docs/getting-started.md docs/limitations.md \
+  demo/README.md demo/index.html tests/test_skill_contract.py \
+  docs/superpowers/plans/2026-09-26-vibe-leader-3.1-macos-compatibility.md
+git commit -m "docs: harden Vibe Leader 3.1 Mac acceptance"
+```
+
+源码复审通过前不得重建、覆盖或发布三个候选资产。复审通过后从新的干净冻结提交重新执行 Task 6 Step 8；旧提交 `53f2255c04b8d0e3b1387e52b5d464e24dcdf354` 及其本地资产不再具有晋升资格。
+
+---
+
 ## External Rollout Gates
 
 以下动作不属于本地自动实施。每一门都要重新绑定当时提交、资产、目标仓库和授权。
