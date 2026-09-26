@@ -2480,6 +2480,256 @@ class DarwinRenameBackendTests(unittest.TestCase):
         self.assertFalse(evidence["restored"])
 
 
+PREFLIGHT_KEYS = {
+    "preflight_schema_version", "status", "read_only", "platform", "source",
+    "skills_root", "install_mode", "pending_write_checks", "reasons",
+}
+
+
+class MacPreflightTests(unittest.TestCase):
+    def setUp(self):
+        InstallSkillTests.setUp(self)
+        self.addCleanup(mock.patch.stopall)
+        mock.patch.dict(os.environ, {"CODEX_HOME": str(self.codex_home)}).start()
+
+    def snapshot_tree(self, root):
+        snapshot = {}
+        for path in [root, *sorted(root.rglob("*"))]:
+            metadata = path.lstat()
+            content = None
+            if stat.S_ISREG(metadata.st_mode):
+                content = path.read_bytes()
+            elif stat.S_ISLNK(metadata.st_mode):
+                content = os.readlink(path)
+            snapshot[path.relative_to(root).as_posix()] = (
+                metadata.st_mode, metadata.st_ino, metadata.st_mtime_ns, content,
+            )
+        return snapshot
+
+    def preflight(self, *, selection="CODEX_HOME", root=None, facts=None, platform_error=None):
+        # Resolve the missing entry point before patching platform facts for RED.
+        build = INSTALLER.build_preflight
+        before = self.snapshot_tree(self.tempdir)
+        environment = dict(os.environ)
+        with mock.patch.object(INSTALLER, "_platform_facts", side_effect=platform_error, return_value=facts or {
+            "system": "darwin", "machine": "arm64", "python_version": "3.11.9",
+        }), mock.patch.object(
+            INSTALLER, "probe_mode_capability", side_effect=AssertionError("write probe"),
+        ), mock.patch.object(
+            INSTALLER, "probe_switch_capability", side_effect=AssertionError("write probe"),
+        ), mock.patch.object(
+            Path, "mkdir", side_effect=AssertionError("directory creation"),
+        ), mock.patch.object(
+            tempfile, "mkdtemp", side_effect=AssertionError("temporary directory"),
+        ):
+            report = build(self.source, root or self.skills_root, selection)
+        self.assertEqual(self.snapshot_tree(self.tempdir), before)
+        self.assertEqual(dict(os.environ), environment)
+        self.assertEqual(set(report), PREFLIGHT_KEYS)
+        self.assertEqual(report["preflight_schema_version"], 1)
+        self.assertIs(report["read_only"], True)
+        self.assertEqual(report["pending_write_checks"], [
+            "MODE_CAPABILITY_PROBE", "SWITCH_CAPABILITY_PROBE",
+        ])
+        encoded = json.dumps(report)
+        self.assertNotIn(str(self.source), encoded)
+        self.assertNotIn(str(self.skills_root), encoded)
+        self.assertNotIn(str(self.tempdir), encoded)
+        return report
+
+    def assert_not_ready(self, reason, **kwargs):
+        report = self.preflight(**kwargs)
+        self.assertEqual(report["status"], "NOT_READY")
+        self.assertIn(reason, report["reasons"])
+        return report
+
+    def test_ready_fresh_install_preflight_is_byte_level_read_only(self):
+        report = self.preflight()
+        self.assertEqual(report["status"], "READY")
+        self.assertEqual(report["install_mode"], "FRESH_INSTALL")
+        self.assertEqual(report["reasons"], [])
+        self.assertEqual(set(report["source"]), {"file_count", "tree_digest"})
+        self.assertEqual(report["source"]["file_count"], 13)
+        self.assertRegex(report["source"]["tree_digest"], r"^[0-9a-f]{64}$")
+        self.assertEqual(report["skills_root"]["selection_source"], "CODEX_HOME")
+        self.assertEqual(report["skills_root"]["stable_identity"], {
+            "type": "directory", "device": self.skills_root.stat().st_dev,
+            "inode": self.skills_root.stat().st_ino,
+        })
+        (self.source / "SKILL.md").write_text("changed source\n", encoding="utf-8")
+        changed = self.preflight()
+        self.assertNotEqual(report["source"]["tree_digest"], changed["source"]["tree_digest"])
+
+    def test_controlled_upgrade_uses_verified_old_manifest(self):
+        result = InstallSkillTests.install(self)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (self.source / "SKILL.md").write_text("new source\n", encoding="utf-8")
+        report = self.preflight()
+        self.assertEqual(report["status"], "READY")
+        self.assertEqual(report["install_mode"], "CONTROLLED_UPGRADE")
+
+    def run_cli(self, *args, **kwargs):
+        return InstallSkillTests.run_cli(self, *args, **kwargs)
+
+    def test_incomplete_target_or_state_blocks_install_mode(self):
+        for entry in (self.target, self.state_dir):
+            with self.subTest(entry=entry.name):
+                entry.mkdir()
+                report = self.assert_not_ready("INSTALL_STATE_INCOMPLETE")
+                self.assertEqual(report["install_mode"], "BLOCKED")
+                entry.rmdir()
+
+    def test_dangling_target_is_not_a_fresh_install(self):
+        self.target.symlink_to(self.tempdir / "missing", target_is_directory=True)
+        report = self.assert_not_ready("INSTALL_STATE_INCOMPLETE")
+        self.assertEqual(report["install_mode"], "BLOCKED")
+
+    def test_missing_manifest_blocks_upgrade(self):
+        self.target.mkdir()
+        self.state_dir.mkdir()
+        report = self.assert_not_ready("INSTALLED_MANIFEST_INVALID")
+        self.assertEqual(report["install_mode"], "BLOCKED")
+
+    def test_installed_drift_blocks_upgrade_without_path_leakage(self):
+        result = InstallSkillTests.install(self)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (self.target / "SKILL.md").write_text("drift\n", encoding="utf-8")
+        report = self.assert_not_ready("INSTALLED_TREE_DRIFT")
+        self.assertEqual(report["install_mode"], "BLOCKED")
+
+    def test_exact_runtime_layout_rejects_extra_missing_and_replaced_file(self):
+        original = self.source / "references" / "portfolio.md"
+        content = original.read_bytes()
+        for kind in ("extra", "missing", "replaced"):
+            with self.subTest(kind=kind):
+                extra = self.source / "private-user-file.md"
+                if kind != "extra":
+                    original.unlink()
+                if kind != "missing":
+                    extra.write_bytes(content)
+                report = self.assert_not_ready("SOURCE_LAYOUT_INVALID")
+                self.assertIsNone(report["source"])
+                self.assertNotIn("private-user-file", json.dumps(report))
+                if extra.exists():
+                    extra.unlink()
+                if not original.exists():
+                    original.write_bytes(content)
+
+    def test_symlink_source_is_not_read(self):
+        link = self.tempdir / "source-link"
+        link.symlink_to(self.source, target_is_directory=True)
+        self.source = link
+        self.assert_not_ready("SOURCE_LAYOUT_INVALID")
+
+    def test_unsupported_platform_architecture_and_python_are_not_ready(self):
+        for key, value, reason in (
+            ("system", "linux", "PLATFORM_UNSUPPORTED"),
+            ("system", "unknown", "PLATFORM_UNSUPPORTED"),
+            ("machine", "x86_64", "ARCHITECTURE_UNSUPPORTED"),
+            ("python_version", "3.10.14", "PYTHON_VERSION_UNSUPPORTED"),
+            ("python_version", "unavailable", "PYTHON_VERSION_UNSUPPORTED"),
+        ):
+            with self.subTest(key=key, value=value):
+                facts = {"system": "darwin", "machine": "arm64", "python_version": "3.11.9"}
+                facts[key] = value
+                self.assert_not_ready(reason, facts=facts)
+
+    def test_newer_python_is_ready(self):
+        report = self.preflight(facts={
+            "system": "darwin", "machine": "arm64", "python_version": "3.12.0",
+        })
+        self.assertEqual(report["status"], "READY")
+
+    def test_unavailable_platform_facts_return_a_redacted_report(self):
+        report = self.assert_not_ready(
+            "PLATFORM_FACTS_UNAVAILABLE", platform_error=OSError(str(self.tempdir)),
+        )
+        self.assertIsNone(report["platform"])
+
+    def test_invalid_selection_does_not_scan_source(self):
+        with mock.patch.object(INSTALLER, "scan_tree", side_effect=AssertionError("scan")):
+            self.assert_not_ready("SELECTION_SOURCE_INVALID", selection="guess")
+
+    def test_codex_home_selection_must_match_environment(self):
+        other = self.tempdir / "other-skills"
+        other.mkdir()
+        with mock.patch.object(INSTALLER, "scan_tree", side_effect=AssertionError("scan")):
+            self.assert_not_ready("CODEX_HOME_SELECTION_MISMATCH", root=other)
+
+    def test_codex_home_must_be_present_and_canonical(self):
+        alias = self.tempdir / "home-alias"
+        alias.symlink_to(self.codex_home, target_is_directory=True)
+        for value in (None, str(alias), "relative-home", str(self.tempdir / "missing")):
+            with self.subTest(value=value), mock.patch.dict(os.environ):
+                if value is None:
+                    os.environ.pop("CODEX_HOME", None)
+                else:
+                    os.environ["CODEX_HOME"] = value
+                self.assert_not_ready("CODEX_HOME_INVALID")
+
+    def test_explicit_root_does_not_depend_on_codex_home(self):
+        other = self.tempdir / "explicit-skills"
+        other.mkdir()
+        with mock.patch.dict(os.environ, {"CODEX_HOME": "invalid-home"}):
+            report = self.preflight(selection="EXPLICIT_SKILLS_ROOT", root=other)
+        self.assertEqual(report["status"], "READY")
+        self.assertEqual(report["skills_root"]["selection_source"], "EXPLICIT_SKILLS_ROOT")
+
+    def test_symlink_and_missing_roots_are_rejected_without_creation(self):
+        alias = self.tempdir / "root-alias"
+        alias.symlink_to(self.skills_root, target_is_directory=True)
+        for root in (alias, self.tempdir / "missing-root"):
+            with self.subTest(root=root.name):
+                self.assert_not_ready("SKILLS_ROOT_INVALID", selection="EXPLICIT_SKILLS_ROOT", root=root)
+
+    def test_filesystem_identity_unavailable_is_not_ready(self):
+        with mock.patch.object(INSTALLER, "filesystem_identity", side_effect=
+                INSTALLER.InstallError("filesystem_identity_unavailable", 4)):
+            self.assert_not_ready("FILESYSTEM_IDENTITY_UNAVAILABLE")
+
+    def test_filesystem_mount_identity_is_stable_and_redacted(self):
+        mount = "/Users/private-preflight-user/ExternalVolume"
+        identity = {
+            "device": self.skills_root.stat().st_dev,
+            "mount_target": mount, "filesystem_type": "apfs",
+            "mount_options_sha256": "a" * 64,
+        }
+        with mock.patch.object(INSTALLER, "filesystem_identity", return_value=identity):
+            first, second = self.preflight(), self.preflight()
+        filesystem = first["skills_root"]["filesystem_identity"]
+        self.assertEqual(set(filesystem), {
+            "device", "mount_target", "filesystem_type", "mount_options_sha256",
+        })
+        self.assertEqual(filesystem, {
+            **identity, "mount_target": "sha256:" + hashlib.sha256(mount.encode("utf-8")).hexdigest(),
+        })
+        self.assertEqual(filesystem, second["skills_root"]["filesystem_identity"])
+        self.assertNotIn("private-preflight-user", json.dumps(first))
+        self.assertNotIn(mount, json.dumps(first))
+
+    def test_cli_outputs_one_json_report_and_status_exit_code(self):
+        build = INSTALLER.build_preflight
+        for system, status, code in (("darwin", "READY", 0), ("linux", "NOT_READY", 4)):
+            with self.subTest(system=system), mock.patch.object(
+                INSTALLER, "_platform_facts", return_value={
+                    "system": system, "machine": "arm64", "python_version": "3.11.9",
+                },
+            ), mock.patch.object(sys, "argv", [
+                str(SCRIPT), "preflight", "--source", str(self.source),
+                "--skills-root", str(self.skills_root), "--selection-source", "CODEX_HOME",
+            ]):
+                before = self.snapshot_tree(self.tempdir)
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    result = INSTALLER.main()
+                self.assertEqual(result, code)
+                self.assertEqual(len(output.getvalue().splitlines()), 1)
+                report = json.loads(output.getvalue())
+                self.assertEqual(set(report), PREFLIGHT_KEYS)
+                self.assertEqual(report["status"], status)
+                self.assertEqual(self.snapshot_tree(self.tempdir), before)
+
+
 class UpgradePreflightTests(unittest.TestCase):
     SOURCE_HEAD = "1" * 40
 

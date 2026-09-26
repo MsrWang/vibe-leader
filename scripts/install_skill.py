@@ -45,6 +45,8 @@ LEGACY_RESTORE_RECEIPT_SCHEMA_VERSION = 1
 ROUTE_A_RESTORE_RECEIPT_SCHEMA_VERSION = 2
 SWITCH_BACKEND_EVIDENCE_SCHEMA_VERSION = 1
 TOGGLE_SCHEMA_VERSION = 1
+PREFLIGHT_SCHEMA_VERSION = 1
+PREFLIGHT_SELECTION_SOURCES = frozenset({"CODEX_HOME", "EXPLICIT_SKILLS_ROOT"})
 SKILL_NAME = "vibe-project-lead-zh"
 MANIFEST_NAME = "install-manifest.json"
 PREPARED_MANIFEST_NAME = "prepared-manifest.json"
@@ -3992,6 +3994,138 @@ def verify_internal(target: Path, manifest_path: Path) -> tuple[dict[str, Any], 
     return manifest, compare_installed_snapshot(manifest, target)
 
 
+def _platform_facts() -> dict[str, str]:
+    return {
+        "system": sys.platform,
+        "machine": platform.machine().lower(),
+        "python_version": platform.python_version(),
+    }
+
+
+def build_preflight(
+    source: Path, skills_root: Path, selection_source: str,
+) -> dict[str, Any]:
+    """Read explicit installation facts without creating directories or probes."""
+    report: dict[str, Any] = {
+        "preflight_schema_version": PREFLIGHT_SCHEMA_VERSION,
+        "status": "NOT_READY",
+        "read_only": True,
+        "platform": None,
+        "source": None,
+        "skills_root": None,
+        "install_mode": "BLOCKED",
+        "pending_write_checks": ["MODE_CAPABILITY_PROBE", "SWITCH_CAPABILITY_PROBE"],
+        "reasons": [],
+    }
+    reasons = report["reasons"]
+    if selection_source not in PREFLIGHT_SELECTION_SOURCES:
+        reasons.append("SELECTION_SOURCE_INVALID")
+        return report
+
+    if selection_source == "CODEX_HOME":
+        try:
+            home = validate_codex_home()
+            if Path(os.environ["CODEX_HOME"]) != home:
+                raise InstallError("unsafe_codex_home")
+        except (InstallError, OSError, ValueError, RuntimeError):
+            reasons.append("CODEX_HOME_INVALID")
+            return report
+        if Path(skills_root) != home / "skills":
+            reasons.append("CODEX_HOME_SELECTION_MISMATCH")
+            return report
+
+    try:
+        source_path = strict_existing_directory(Path(source), "unsafe_source_entry")
+        if source_path != Path(source):
+            raise InstallError("unsafe_source_entry")
+        entries = scan_tree(source_path)
+        validate_runtime_layout(entries)
+        report["source"] = {
+            "file_count": sum(entry["type"] == "file" for entry in entries.values()),
+            "tree_digest": canonical_tree_digest(entries),
+        }
+    except (InstallError, OSError, ValueError, RuntimeError):
+        reasons.append("SOURCE_LAYOUT_INVALID")
+        return report
+
+    try:
+        facts = _platform_facts()
+    except (OSError, ValueError, RuntimeError):
+        reasons.append("PLATFORM_FACTS_UNAVAILABLE")
+        return report
+    report["platform"] = facts
+    if facts.get("system") != "darwin":
+        reasons.append("PLATFORM_UNSUPPORTED")
+    if facts.get("machine") != "arm64":
+        reasons.append("ARCHITECTURE_UNSUPPORTED")
+    version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", facts.get("python_version", ""))
+    if version is None or tuple(map(int, version.groups())) < (3, 11, 0):
+        reasons.append("PYTHON_VERSION_UNSUPPORTED")
+
+    try:
+        root = strict_existing_directory(Path(skills_root), "unsafe_skills_root")
+        if root != Path(skills_root):
+            raise InstallError("unsafe_skills_root")
+        before = directory_identity(root, "unsafe_skills_root")
+    except (InstallError, OSError, ValueError, RuntimeError):
+        reasons.append("SKILLS_ROOT_INVALID")
+        return report
+    try:
+        filesystem = filesystem_identity(root)
+        _validate_target_filesystem(filesystem)
+        if (
+            filesystem["device"] != before["device"]
+            or not os.path.isabs(filesystem["mount_target"])
+            or re.fullmatch(r"[A-Za-z0-9_.+-]+", filesystem["filesystem_type"]) is None
+            or directory_identity(root, "unsafe_skills_root") != before
+        ):
+            raise InstallError("filesystem_identity_unavailable")
+        # Public reports retain the four identity keys without disclosing a path.
+        public_filesystem = {
+            **filesystem,
+            "mount_target": "sha256:" + hashlib.sha256(
+                filesystem["mount_target"].encode("utf-8", errors="strict")
+            ).hexdigest(),
+        }
+        report["skills_root"] = {
+            "selection_source": selection_source,
+            "stable_identity": {key: before[key] for key in ("type", "device", "inode")},
+            "filesystem_identity": public_filesystem,
+        }
+    except (InstallError, OSError, ValueError, RuntimeError):
+        reasons.append("FILESYSTEM_IDENTITY_UNAVAILABLE")
+        return report
+
+    target = root / SKILL_NAME
+    state = root / f".{SKILL_NAME}-install"
+    try:
+        present = []
+        for path in (target, state):
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                present.append(False)
+            else:
+                present.append(True)
+        if present == [False, False]:
+            report["install_mode"] = "FRESH_INSTALL"
+        elif present == [True, True]:
+            strict_existing_directory(target, "unsafe_target_entry")
+            strict_existing_directory(state, "unsafe_install_state")
+            _, differences = verify_internal(target, state / MANIFEST_NAME)
+            if differences:
+                reasons.append("INSTALLED_TREE_DRIFT")
+            else:
+                report["install_mode"] = "CONTROLLED_UPGRADE"
+        else:
+            reasons.append("INSTALL_STATE_INCOMPLETE")
+    except (InstallError, OSError, ValueError, RuntimeError):
+        reasons.append("INSTALLED_MANIFEST_INVALID")
+    if not reasons:
+        report["status"] = "READY"
+    return report
+
+
 def read_source_head(source: Path) -> str:
     source = Path(os.path.abspath(source))
     current = source
@@ -7465,6 +7599,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 
+    preflight_parser = commands.add_parser("preflight")
+    preflight_parser.add_argument("--source", required=True, type=Path)
+    preflight_parser.add_argument("--skills-root", required=True, type=Path)
+    preflight_parser.add_argument(
+        "--selection-source",
+        required=True,
+        choices=tuple(sorted(PREFLIGHT_SELECTION_SOURCES)),
+    )
+
     install_parser = commands.add_parser("install")
     install_parser.add_argument("--source", required=True, type=Path)
     install_parser.add_argument("--skills-root", required=True, type=Path)
@@ -7518,6 +7661,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
+        if args.command == "preflight":
+            report = build_preflight(args.source, args.skills_root, args.selection_source)
+            print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+            return 0 if report["status"] == "READY" else 4
         if args.command == "install":
             return install(args.source, args.skills_root)
         if args.command == "verify":

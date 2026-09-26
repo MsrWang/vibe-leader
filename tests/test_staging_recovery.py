@@ -194,12 +194,21 @@ class PublicInstallerBoundaryTests(SyntheticRecoveryFixture, unittest.TestCase):
         self.assertIn("invalid choice", result.stderr)
         self.assertEqual(self.snapshot_tree(self.codex_home), before)
 
-    def test_all_eight_general_commands_remain_available(self):
+    def test_all_nine_general_commands_remain_available(self):
         before = self.snapshot_tree(self.codex_home)
-        for command in (
+        expected_commands = (
             "install", "verify", "rollback", "attest-switch-backend",
             "prepare-upgrade", "upgrade", "inspect-upgrade", "restore-version",
-        ):
+            "preflight",
+        )
+        help_result = self.run_public_cli("--help")
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        choices = re.search(r"\{([^{}]+)\}", help_result.stdout)
+        self.assertIsNotNone(choices)
+        commands = choices.group(1).split(",")
+        self.assertEqual(len(commands), 9)
+        self.assertEqual(set(commands), set(expected_commands))
+        for command in expected_commands:
             with self.subTest(command=command):
                 result = self.run_public_cli(command, "--help")
                 self.assertEqual(result.returncode, 0, result.stderr)
