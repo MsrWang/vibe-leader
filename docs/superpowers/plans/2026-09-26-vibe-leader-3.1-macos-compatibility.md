@@ -1050,6 +1050,14 @@ git commit -m "docs: harden Vibe Leader 3.1 Mac acceptance"
 
 ---
 
+### Task 6R2: 最终收紧旧内容升级、正式晋升和真实升级检查
+
+最终文档复审要求三项修订：隔离的 v3.0.3→3.1 路径只能用已验证解包的 3.1 Darwin 安装器安装可信旧 Skill 内容，不能在 Mac 上执行 v3.0.3 安装器；正式标签提交或任一资产摘要变化必须停止晋升并产生新候选，只有字节相同而环境或安装前状态变化时才复演真实恢复；真实 `CONTROLLED_UPGRADE` 在 Codex App 观察前必须从成功收据取得 journal，执行 `inspect-upgrade` 和活动安装 `verify`，两项均为 `verified`。
+
+先扩展逐文件公开合同并确认 RED，再修订发行说明和验收指南、运行目标测试、逐块 Bash 语法检查、Task 6 聚焦套件、显式取消真实 `CODEX_HOME`/interop 的完整套件、隐私与时间表述扫描及 `git diff --check`。形成独立提交；源码复审通过前仍不得重建或发布资产。
+
+---
+
 ## External Rollout Gates
 
 以下动作不属于本地自动实施。每一门都要重新绑定当时提交、资产、目标仓库和授权。

@@ -202,7 +202,7 @@ test "$(find "$VIBE_TEMP_CODEX_HOME/skills/vibe-project-lead-zh" -type f | wc -l
 
 ## 7. 第二个临时根完成 3.0.3→3.1 升级和恢复
 
-基线标签固定为公共 `v3.0.3`。从已绑定的公共仓库提交创建独立本地 clone，在第二个临时 `CODEX_HOME` 安装基线，再使用已验证候选执行 `prepare-upgrade`、`upgrade`、`inspect-upgrade` 和 `restore-version`。
+基线标签固定为公共 `v3.0.3`。从已绑定的公共仓库提交创建独立本地 clone；使用已验证解包的 **3.1 Darwin 安装器**把可信 v3.0.3 Skill 源码安装到第二个临时 `CODEX_HOME`，再执行 `prepare-upgrade`、`upgrade`、`inspect-upgrade` 和 `restore-version`。这只验证 3.1 Darwin 安装器对**旧内容升级与恢复**的合同，不证明 v3.0.3 安装器的 macOS 兼容性；Mac 上不执行旧安装器。
 
 ```bash
 set -euo pipefail
@@ -216,7 +216,7 @@ git -C "$VIBE_BASELINE_REPO" checkout --detach "$VIBE_BASELINE_COMMIT"
 VIBE_UPGRADE_CODEX_HOME="$VIBE_ACCEPTANCE_ROOT/upgrade-codex-home"
 mkdir -m 700 "$VIBE_UPGRADE_CODEX_HOME" "$VIBE_UPGRADE_CODEX_HOME/skills"
 CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" python3 -B \
-  "$VIBE_BASELINE_REPO/scripts/install_skill.py" install \
+  "$VIBE_RELEASE_ROOT/scripts/install_skill.py" install \
   --source "$VIBE_BASELINE_REPO/skill/vibe-project-lead-zh" \
   --skills-root "$VIBE_UPGRADE_CODEX_HOME/skills" \
   > "$VIBE_PRIVATE_EVIDENCE/baseline-install.json"
@@ -313,9 +313,32 @@ CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
   --request "$VIBE_REAL_UPGRADE_REQUEST" \
   --confirm-request "$VIBE_REAL_REQUEST_DIGEST" \
   > "$VIBE_PRIVATE_EVIDENCE/real-upgrade-result.json"
+VIBE_REAL_UPGRADE_RECEIPT="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["receipt"])' "$VIBE_PRIVATE_EVIDENCE/real-upgrade-result.json")"
+VIBE_REAL_UPGRADE_JOURNAL="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["journal"])' "$VIBE_REAL_UPGRADE_RECEIPT")"
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+  "$VIBE_RELEASE_ROOT/scripts/install_skill.py" inspect-upgrade \
+  --journal "$VIBE_REAL_UPGRADE_JOURNAL" \
+  > "$VIBE_PRIVATE_EVIDENCE/real-upgrade-inspection.json"
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+  "$VIBE_RELEASE_ROOT/scripts/install_skill.py" verify \
+  --target "$VIBE_REAL_CODEX_HOME/skills/vibe-project-lead-zh" \
+  --manifest "$VIBE_REAL_CODEX_HOME/skills/.vibe-project-lead-zh-install/install-manifest.json" \
+  > "$VIBE_PRIVATE_EVIDENCE/real-upgrade-verify.json"
+python3 - \
+  "$VIBE_PRIVATE_EVIDENCE/real-upgrade-inspection.json" \
+  "$VIBE_PRIVATE_EVIDENCE/real-upgrade-verify.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+for result_path in map(Path, sys.argv[1:]):
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    if payload.get("status") != "verified":
+        raise SystemExit(f"unverified result: {result_path.name}")
+PY
 ```
 
-只执行与 `real-preflight.json` 中 `install_mode` 相符的一条路径。漂移、拒绝、恢复必需或未知均停止。
+只执行与 `real-preflight.json` 中 `install_mode` 相符的一条路径。受控升级必须先确认检查结果和活动安装核验结果的状态为 `verified`，然后才能进入 Codex App 用户观察。漂移、拒绝、恢复必需或未知均停止。
 
 ## 9. Codex App 用户观察
 
@@ -395,7 +418,7 @@ printf '%s\n' 'acceptance_root_removed=true' \
 
 正式 Release 必须从相同公共仓库的 `v3.1.0` 元数据重新开始第 2–4 节，并逐项核对提交和三个 GitHub API digest。正式安装/升级、Codex App 用户观察和保留稳定版活动状态分别取得新的外部批准。
 
-只有环境、安装前状态和三个资产摘要都与候选验收一致时，候选恢复证据才可作为支持材料。若**环境、安装前状态或资产摘要**任一不同，稳定版实装必须**重新执行真实恢复演练**；不得用候选回滚、平台上传成功或相近机器结果替代。
+与已接受候选相比，正式标签的提交或三个资产摘要任一不同，必须停止晋升并生成新的候选；不得把不同字节作为稳定版继续安装。只有提交与三个资产字节完全一致时，候选恢复证据才可作为支持材料。此时若**环境或安装前状态**任一改变，稳定版实装仍必须**重新执行真实恢复演练**；不得用候选回滚、平台上传成功或相近机器结果替代。
 
 <!--
 SPDX-License-Identifier: MPL-2.0

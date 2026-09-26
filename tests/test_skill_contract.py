@@ -590,6 +590,59 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("生命周期状态由外部 Release 元数据", release)
         self.assertIn("经签名或平台回读的收据", release)
 
+        for name, text in (("release", release), ("acceptance", acceptance)):
+            for required in (
+                "与已接受候选相比",
+                "提交或三个资产摘要任一不同",
+                "停止晋升并生成新的候选",
+                "环境或安装前状态",
+                "三个资产字节完全一致",
+                "重新执行真实恢复演练",
+            ):
+                with self.subTest(name=name, promotion_boundary=required):
+                    self.assertIn(required, text)
+
+        isolated_upgrade = acceptance.split(
+            "## 7. 第二个临时根完成 3.0.3→3.1 升级和恢复", 1
+        )[1].split("## 8. 真实安装或升级：单独外部批准", 1)[0]
+        for required in (
+            "3.1 Darwin 安装器",
+            "旧内容升级与恢复",
+            "不证明 v3.0.3 安装器的 macOS 兼容性",
+            '"$VIBE_RELEASE_ROOT/scripts/install_skill.py" install',
+            '--source "$VIBE_BASELINE_REPO/skill/vibe-project-lead-zh"',
+        ):
+            with self.subTest(isolated_upgrade_required=required):
+                self.assertIn(required, isolated_upgrade)
+        self.assertNotIn(
+            '"$VIBE_BASELINE_REPO/scripts/install_skill.py" install',
+            isolated_upgrade,
+        )
+
+        real_upgrade = acceptance.split("受控升级路径：", 1)[1].split(
+            "## 9. Codex App 用户观察", 1
+        )[0]
+        for required in (
+            "VIBE_REAL_UPGRADE_RECEIPT",
+            "VIBE_REAL_UPGRADE_JOURNAL",
+            "inspect-upgrade",
+            "real-upgrade-inspection.json",
+            "real-upgrade-verify.json",
+            'CODEX_HOME="$VIBE_REAL_CODEX_HOME"',
+            "状态为 `verified`",
+            'payload.get("status") != "verified"',
+        ):
+            with self.subTest(real_upgrade_required=required):
+                self.assertIn(required, real_upgrade)
+        self.assertLess(
+            real_upgrade.index("real-upgrade-result.json"),
+            real_upgrade.index("VIBE_REAL_UPGRADE_RECEIPT"),
+        )
+        self.assertLess(
+            real_upgrade.index("inspect-upgrade"),
+            real_upgrade.index("real-upgrade-verify.json"),
+        )
+
         for required in (
             "https://github.com/MsrWang/vibe-leader.git",
             "MsrWang/vibe-leader",
@@ -615,7 +668,7 @@ class SkillContractTests(unittest.TestCase):
             "私有原始证据",
             "公开去标识收据",
             "绝对路径只保留在私有原始证据",
-            "环境、安装前状态或资产摘要",
+            "环境或安装前状态",
             "重新执行真实恢复演练",
             "候选回滚",
             "稳定版实装",
