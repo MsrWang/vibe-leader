@@ -92,7 +92,7 @@ class _SourceSnapshot:
     source_ref: str
     relative_path: str
     relative_bytes: bytes
-    resolved_path: str
+    resolved_path: str | None
     identity: tuple[int, int, int, int, int, int]
     content: bytes
     content_sha256: str
@@ -176,21 +176,34 @@ def _file_identity(metadata: os.stat_result) -> tuple[int, int, int, int, int, i
     )
 
 
-def _secure_read_available() -> bool:
-    return (
+LINUX_SECURE_READ = "LINUX_PROC_FD"
+DARWIN_SECURE_READ = "DARWIN_OPENAT"
+
+
+def _secure_read_backend(platform_name: str | None = None) -> str | None:
+    selected = sys.platform if platform_name is None else platform_name
+    common = (
         os.name == "posix"
-        and hasattr(os, "O_NOFOLLOW")
-        and hasattr(os, "O_DIRECTORY")
-        and hasattr(os, "O_PATH")
+        and isinstance(getattr(os, "O_NOFOLLOW", None), int)
+        and isinstance(getattr(os, "O_DIRECTORY", None), int)
         and os.open in os.supports_dir_fd
-        and os.readlink in os.supports_dir_fd
-        and os.path.isdir("/proc/self/fd")
     )
+    if not common:
+        return None
+    if selected == "darwin":
+        nofollow_any = getattr(os, "O_NOFOLLOW_ANY", None)
+        return DARWIN_SECURE_READ if isinstance(nofollow_any, int) and nofollow_any else None
+    if selected.startswith("linux"):
+        if (
+            isinstance(getattr(os, "O_PATH", None), int)
+            and os.readlink in os.supports_dir_fd
+            and os.path.isdir("/proc/self/fd")
+        ):
+            return LINUX_SECURE_READ
+    return None
 
 
-def _open_root(project_root: str) -> tuple[int, str, tuple[int, int, int, int, int, int]]:
-    if not _secure_read_available():
-        raise EvidenceInputError("SECURE_READ_UNAVAILABLE")
+def _open_root_linux(project_root: str) -> tuple[int, str, tuple[int, int, int, int, int, int]]:
     resolved_root = os.path.realpath(project_root)
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     try:
@@ -210,6 +223,45 @@ def _open_root(project_root: str) -> tuple[int, str, tuple[int, int, int, int, i
         os.close(root_fd)
         raise EvidenceInputError("PATH_UNSAFE")
     return root_fd, resolved_root, _file_identity(metadata)
+
+
+def _open_root_darwin(project_root: str) -> tuple[int, str, tuple[int, int, int, int, int, int]]:
+    root_path = os.path.abspath(project_root)
+    try:
+        before = os.lstat(root_path)
+        root_fd = os.open(
+            root_path,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW_ANY | getattr(os, "O_CLOEXEC", 0),
+        )
+    except OSError:
+        raise EvidenceInputError("PATH_UNSAFE") from None
+    try:
+        after = os.lstat(root_path)
+        descriptor = os.fstat(root_fd)
+        if (
+            not stat.S_ISDIR(descriptor.st_mode)
+            or _file_identity(before) != _file_identity(after)
+            or _file_identity(after) != _file_identity(descriptor)
+        ):
+            raise EvidenceInputError("PATH_UNSAFE")
+        return root_fd, root_path, _file_identity(descriptor)
+    except EvidenceInputError:
+        os.close(root_fd)
+        raise
+    except OSError:
+        os.close(root_fd)
+        raise EvidenceInputError("PATH_UNSAFE") from None
+
+
+def _open_root(project_root: str) -> tuple[int, str, tuple[int, int, int, int, int, int], str]:
+    backend = _secure_read_backend()
+    if backend == LINUX_SECURE_READ:
+        root_fd, root_path, identity = _open_root_linux(project_root)
+    elif backend == DARWIN_SECURE_READ:
+        root_fd, root_path, identity = _open_root_darwin(project_root)
+    else:
+        raise EvidenceInputError("SECURE_READ_UNAVAILABLE")
+    return root_fd, root_path, identity, backend
 
 
 def _validate_relative_path(value: object) -> tuple[str, bytes]:
@@ -232,38 +284,62 @@ def _validate_relative_path(value: object) -> tuple[str, bytes]:
     return value, encoded
 
 
-def _open_relative_file(root_fd: int, relative_bytes: bytes) -> tuple[int, int, bytes]:
+def _open_relative_file(root_fd: int, relative_bytes: bytes, backend: str) -> tuple[int, int, bytes]:
     parts = relative_bytes.split(b"/")
     parent_fd = os.dup(root_fd)
     leaf_fd = -1
     file_fd = -1
     try:
         for part in parts[:-1]:
+            before = os.lstat(part, dir_fd=parent_fd)
             next_fd = os.open(
                 part,
                 os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
                 dir_fd=parent_fd,
             )
+            try:
+                after = os.lstat(part, dir_fd=parent_fd)
+                descriptor = os.fstat(next_fd)
+                if (
+                    not stat.S_ISDIR(descriptor.st_mode)
+                    or _file_identity(before) != _file_identity(after)
+                    or _file_identity(after) != _file_identity(descriptor)
+                ):
+                    raise EvidenceInputError("SOURCE_CHANGED_DURING_READBACK")
+            except Exception:
+                os.close(next_fd)
+                raise
             os.close(parent_fd)
             parent_fd = next_fd
-        leaf_fd = os.open(
-            parts[-1],
-            os.O_PATH | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
-            dir_fd=parent_fd,
-        )
-        leaf_metadata = os.fstat(leaf_fd)
-        leaf_identity = _file_identity(leaf_metadata)
-        if not stat.S_ISREG(leaf_metadata.st_mode):
-            raise EvidenceInputError("PATH_UNSAFE")
-        file_fd = os.open(
-            parts[-1],
-            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
-            dir_fd=parent_fd,
-        )
-        if _file_identity(os.fstat(file_fd)) != leaf_identity:
-            raise EvidenceInputError("SOURCE_CHANGED_DURING_READBACK")
-        os.close(leaf_fd)
-        leaf_fd = -1
+        if backend == LINUX_SECURE_READ:
+            leaf_fd = os.open(
+                parts[-1],
+                os.O_PATH | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+                dir_fd=parent_fd,
+            )
+            leaf_metadata = os.fstat(leaf_fd)
+            leaf_identity = _file_identity(leaf_metadata)
+            if not stat.S_ISREG(leaf_metadata.st_mode):
+                raise EvidenceInputError("PATH_UNSAFE")
+            file_fd = os.open(
+                parts[-1],
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
+                dir_fd=parent_fd,
+            )
+            if _file_identity(os.fstat(file_fd)) != leaf_identity:
+                raise EvidenceInputError("SOURCE_CHANGED_DURING_READBACK")
+            os.close(leaf_fd)
+            leaf_fd = -1
+        elif backend == DARWIN_SECURE_READ:
+            file_fd = os.open(
+                parts[-1],
+                os.O_RDONLY | os.O_NOFOLLOW_ANY | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0),
+                dir_fd=parent_fd,
+            )
+            if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+                raise EvidenceInputError("PATH_UNSAFE")
+        else:
+            raise EvidenceInputError("SECURE_READ_UNAVAILABLE")
         return parent_fd, file_fd, parts[-1]
     except EvidenceInputError:
         if file_fd >= 0:
@@ -281,7 +357,9 @@ def _open_relative_file(root_fd: int, relative_bytes: bytes) -> tuple[int, int, 
         raise EvidenceInputError("PATH_UNSAFE") from None
 
 
-def _resolved_file_path(file_fd: int, root_path: str) -> str:
+def _resolved_file_path(file_fd: int, root_path: str, backend: str) -> str | None:
+    if backend == DARWIN_SECURE_READ:
+        return None
     try:
         path = os.readlink(f"/proc/self/fd/{file_fd}")
         resolved = os.path.realpath(path)
@@ -415,18 +493,19 @@ def _read_sources(
     root_fd: int,
     root_path: str,
     paths: list[tuple[str, bytes]],
+    backend: str,
 ) -> list[_SourceSnapshot]:
     snapshots: list[_SourceSnapshot] = []
     total_bytes = 0
     for relative_path, relative_bytes in paths:
-        parent_fd, file_fd, _name = _open_relative_file(root_fd, relative_bytes)
+        parent_fd, file_fd, _name = _open_relative_file(root_fd, relative_bytes, backend)
         try:
-            resolved_path = _resolved_file_path(file_fd, root_path)
+            resolved_path = _resolved_file_path(file_fd, root_path, backend)
             if _contains_sensitive_content(
                 relative_path, is_path_field=True
-            ) or _contains_sensitive_content(
+            ) or (resolved_path is not None and _contains_sensitive_content(
                 resolved_path, is_path_field=True
-            ):
+            )):
                 raise EvidenceInputError("SENSITIVE_INPUT_BLOCKED", status="BLOCKED")
             content, identity = _read_all(file_fd, MAX_FILE_BYTES)
         finally:
@@ -511,13 +590,14 @@ def _verify_snapshots(
     root_fd: int,
     root_path: str,
     snapshots: list[_SourceSnapshot],
+    backend: str,
 ) -> None:
     for snapshot in snapshots:
         parent_fd, file_fd, _name = _open_relative_file(
-            root_fd, snapshot.relative_bytes
+            root_fd, snapshot.relative_bytes, backend
         )
         try:
-            if _resolved_file_path(file_fd, root_path) != snapshot.resolved_path:
+            if snapshot.resolved_path is not None and _resolved_file_path(file_fd, root_path, backend) != snapshot.resolved_path:
                 raise EvidenceInputError("SOURCE_CHANGED_DURING_READBACK")
             current, identity = _read_all(file_fd, MAX_FILE_BYTES)
             if (
@@ -536,6 +616,7 @@ def _readback(
     snapshots: list[_SourceSnapshot],
     candidates: list[_Candidate],
     selected_ids: list[str],
+    backend: str,
 ) -> list[dict[str, object]]:
     selected = {candidate_id for candidate_id in selected_ids}
     by_source: dict[int, list[_Candidate]] = {}
@@ -545,9 +626,9 @@ def _readback(
     items: list[dict[str, object]] = []
     for source_index in sorted(by_source):
         snapshot = snapshots[source_index]
-        parent_fd, file_fd, _name = _open_relative_file(root_fd, snapshot.relative_bytes)
+        parent_fd, file_fd, _name = _open_relative_file(root_fd, snapshot.relative_bytes, backend)
         try:
-            if _resolved_file_path(file_fd, root_path) != snapshot.resolved_path:
+            if snapshot.resolved_path is not None and _resolved_file_path(file_fd, root_path, backend) != snapshot.resolved_path:
                 raise EvidenceInputError("SOURCE_CHANGED_DURING_READBACK")
             current, identity = _read_all(file_fd, MAX_FILE_BYTES)
             if identity != snapshot.identity or hashlib.sha256(current).hexdigest() != snapshot.content_sha256:
@@ -614,11 +695,11 @@ def screen_project_files(
             raise EvidenceInputError("PATH_UNSAFE")
         if _contains_sensitive_content(query):
             raise EvidenceInputError("SENSITIVE_INPUT_BLOCKED", status="BLOCKED")
-        root_fd, root_path, root_identity = _open_root(".")
+        root_fd, root_path, root_identity, backend = _open_root(".")
         try:
             if _contains_sensitive_content(root_path, is_path_field=True):
                 raise EvidenceInputError("SENSITIVE_INPUT_BLOCKED", status="BLOCKED")
-            snapshots = _read_sources(root_fd, root_path, paths)
+            snapshots = _read_sources(root_fd, root_path, paths, backend)
             candidates = _build_candidates(snapshots)
             selected_ids: list[str] = []
             mode = "LOCAL_FILTER"
@@ -632,7 +713,7 @@ def screen_project_files(
                 )
             try:
                 if not candidates:
-                    _verify_snapshots(root_fd, root_path, snapshots)
+                    _verify_snapshots(root_fd, root_path, snapshots, backend)
                     if _file_identity(os.fstat(root_fd)) != root_identity:
                         raise EvidenceInputError("SOURCE_CHANGED_DURING_READBACK")
                     return _result(
@@ -641,7 +722,7 @@ def screen_project_files(
                         fallback_reason="NO_CANDIDATE_WINDOWS",
                     )
                 if not selected_ids:
-                    _verify_snapshots(root_fd, root_path, snapshots)
+                    _verify_snapshots(root_fd, root_path, snapshots, backend)
                     if _file_identity(os.fstat(root_fd)) != root_identity:
                         raise EvidenceInputError("SOURCE_CHANGED_DURING_READBACK")
                     return _result(
@@ -651,9 +732,9 @@ def screen_project_files(
                         fallback_reason=fallback_reason or "NO_LOCAL_MATCH",
                     )
                 items = _readback(
-                    root_fd, root_path, snapshots, candidates, selected_ids
+                    root_fd, root_path, snapshots, candidates, selected_ids, backend
                 )
-                _verify_snapshots(root_fd, root_path, snapshots)
+                _verify_snapshots(root_fd, root_path, snapshots, backend)
                 if _file_identity(os.fstat(root_fd)) != root_identity:
                     raise EvidenceInputError("SOURCE_CHANGED_DURING_READBACK")
             except EvidenceInputError as error:

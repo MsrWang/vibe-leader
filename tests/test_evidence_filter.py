@@ -88,6 +88,118 @@ class EvidenceFilterTests(unittest.TestCase):
             check=False,
         )
 
+    def test_darwin_backend_requires_nofollow_any_and_dir_fd(self):
+        with mock.patch.object(EVIDENCE_FILTER.sys, "platform", "darwin"):
+            with mock.patch.object(EVIDENCE_FILTER.os, "O_NOFOLLOW_ANY", 0x20000000, create=True):
+                with mock.patch.object(EVIDENCE_FILTER.os, "O_DIRECTORY", 0x100000, create=True):
+                    with mock.patch.object(
+                        EVIDENCE_FILTER.os,
+                        "supports_dir_fd",
+                        {EVIDENCE_FILTER.os.open},
+                    ):
+                        self.assertEqual(
+                            EVIDENCE_FILTER._secure_read_backend(),
+                            "DARWIN_OPENAT",
+                        )
+
+        with mock.patch.object(EVIDENCE_FILTER.sys, "platform", "darwin"):
+            with mock.patch.object(EVIDENCE_FILTER.os, "O_NOFOLLOW_ANY", 0, create=True):
+                self.assertIsNone(EVIDENCE_FILTER._secure_read_backend())
+
+        with mock.patch.object(EVIDENCE_FILTER.sys, "platform", "darwin"):
+            with mock.patch.object(EVIDENCE_FILTER.os, "O_NOFOLLOW_ANY", 0x20000000, create=True):
+                with mock.patch.object(EVIDENCE_FILTER.os, "supports_dir_fd", set()):
+                    self.assertIsNone(EVIDENCE_FILTER._secure_read_backend())
+
+    def test_darwin_root_open_rejects_identity_change(self):
+        self.write_text("other/file.txt", "evidence")
+        root_path = str(self.root)
+        original_lstat = os.lstat
+        changed_identity = original_lstat(self.root / "other")
+        root_lstats = 0
+
+        def changing_lstat(path, *args, **kwargs):
+            nonlocal root_lstats
+            if path == root_path:
+                root_lstats += 1
+                if root_lstats == 2:
+                    return changed_identity
+            return original_lstat(path, *args, **kwargs)
+
+        fake_flag = 0x20000000
+        original_open = os.open
+        opened = []
+
+        def opening(path, flags, *args, **kwargs):
+            opened.append((path, flags, kwargs))
+            return original_open(path, flags & ~fake_flag, *args, **kwargs)
+
+        with mock.patch.object(EVIDENCE_FILTER, "_secure_read_backend", return_value="DARWIN_OPENAT"):
+            with mock.patch.object(EVIDENCE_FILTER.os, "O_NOFOLLOW_ANY", fake_flag, create=True):
+                with mock.patch.object(EVIDENCE_FILTER.os, "lstat", side_effect=changing_lstat):
+                    with mock.patch.object(EVIDENCE_FILTER.os, "open", side_effect=opening):
+                        with self.assertRaises(EVIDENCE_FILTER.EvidenceInputError) as context:
+                            EVIDENCE_FILTER._open_root(root_path)
+
+        self.assertEqual(context.exception.reason, "PATH_UNSAFE")
+        self.assertEqual(root_lstats, 2)
+        self.assertTrue(opened[0][1] & fake_flag)
+
+    def test_darwin_relative_open_uses_anchored_descriptors(self):
+        self.write_text("nested/source.txt", "inventory evidence")
+        fake_flag = 0x20000000
+        original_open = os.open
+        opens = []
+
+        def opening(path, flags, *args, **kwargs):
+            opens.append((path, flags, kwargs))
+            return original_open(path, flags & ~fake_flag, *args, **kwargs)
+
+        with mock.patch.object(EVIDENCE_FILTER, "_secure_read_backend", return_value="DARWIN_OPENAT"):
+            with mock.patch.object(EVIDENCE_FILTER.os, "O_NOFOLLOW_ANY", fake_flag, create=True):
+                with mock.patch.object(EVIDENCE_FILTER.os, "open", side_effect=opening):
+                    with mock.patch.object(EVIDENCE_FILTER.os, "readlink", side_effect=AssertionError("/proc use")):
+                        result = self.screen("inventory", ["nested/source.txt"])
+
+        self.assertEqual(result["status"], "OK")
+        self.assertEqual(result["items"][0]["text"], "inventory evidence")
+        root_opens = [item for item in opens if item[0] == str(self.root)]
+        directory_opens = [item for item in opens if item[0] == b"nested"]
+        leaf_opens = [item for item in opens if item[0] == b"source.txt"]
+        self.assertEqual(len(root_opens), 1)
+        self.assertTrue(root_opens[0][1] & fake_flag)
+        self.assertTrue(directory_opens)
+        self.assertTrue(all(item[1] & os.O_NOFOLLOW for item in directory_opens))
+        self.assertTrue(all("dir_fd" in item[2] for item in directory_opens + leaf_opens))
+        self.assertTrue(all(item[1] & fake_flag for item in leaf_opens))
+
+    def test_darwin_missing_nofollow_any_returns_unknown(self):
+        self.write_text("source.txt", "inventory evidence")
+        with mock.patch.object(EVIDENCE_FILTER.sys, "platform", "darwin"):
+            with mock.patch.object(EVIDENCE_FILTER.os, "O_NOFOLLOW_ANY", 0, create=True):
+                result = self.screen("inventory", ["source.txt"])
+        self.assert_empty_result(
+            result, status="UNKNOWN", mode="UNKNOWN", reason="SECURE_READ_UNAVAILABLE"
+        )
+
+    def test_linux_backend_keeps_proc_fd_identity_proof(self):
+        self.write_text("source.txt", "inventory evidence")
+        original_readlink = os.readlink
+        with mock.patch.object(EVIDENCE_FILTER.sys, "platform", "linux"):
+            with mock.patch.object(EVIDENCE_FILTER.os, "readlink", wraps=original_readlink) as readlink:
+                with mock.patch.object(
+                    EVIDENCE_FILTER.os,
+                    "supports_dir_fd",
+                    set(os.supports_dir_fd) | {readlink},
+                ):
+                    result = self.screen("inventory", ["source.txt"])
+        self.assertEqual(result["status"], "OK")
+        self.assertEqual(result["items"][0]["text"], "inventory evidence")
+        self.assertTrue(any(
+            call.args and str(call.args[0]).startswith("/proc/self/fd/")
+            for call in readlink.call_args_list
+        ))
+
     def test_local_filter_returns_exact_verified_bytes_without_paths(self):
         content = "inventory reconciliation evidence\n"
         self.write_text("evidence/sample.txt", content)
@@ -378,8 +490,8 @@ class EvidenceFilterTests(unittest.TestCase):
 
         with mock.patch.object(
             EVIDENCE_FILTER,
-            "_secure_read_available",
-            return_value=False,
+            "_secure_read_backend",
+            return_value=None,
         ):
             result = self.screen("inventory", ["source.txt"])
 
