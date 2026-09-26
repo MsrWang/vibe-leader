@@ -4119,7 +4119,7 @@ def build_preflight(
                 report["install_mode"] = "CONTROLLED_UPGRADE"
         else:
             reasons.append("INSTALL_STATE_INCOMPLETE")
-    except (InstallError, OSError, ValueError, RuntimeError):
+    except (InstallError, OSError, ValueError, RuntimeError, TypeError):
         reasons.append("INSTALLED_MANIFEST_INVALID")
     if not reasons:
         report["status"] = "READY"

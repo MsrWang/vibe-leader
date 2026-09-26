@@ -2590,6 +2590,33 @@ class MacPreflightTests(unittest.TestCase):
         report = self.assert_not_ready("INSTALLED_MANIFEST_INVALID")
         self.assertEqual(report["install_mode"], "BLOCKED")
 
+    def test_manifest_phase_array_returns_not_ready_without_traceback(self):
+        result = InstallSkillTests.install(self)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        manifest = InstallSkillTests.manifest_payload(self)
+        manifest["phase"] = []
+        InstallSkillTests.write_manifest_payload(self, manifest)
+
+        report = self.assert_not_ready("INSTALLED_MANIFEST_INVALID")
+        self.assertEqual(report["install_mode"], "BLOCKED")
+
+        before = self.snapshot_tree(self.tempdir)
+        result = self.run_cli(
+            "preflight", "--source", self.source,
+            "--skills-root", self.skills_root, "--selection-source", "CODEX_HOME",
+        )
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(len(result.stdout.splitlines()), 1)
+        report = json.loads(result.stdout)
+        self.assertEqual(set(report), PREFLIGHT_KEYS)
+        self.assertEqual(report["status"], "NOT_READY")
+        self.assertEqual(report["install_mode"], "BLOCKED")
+        self.assertIn("INSTALLED_MANIFEST_INVALID", report["reasons"])
+        self.assertNotIn(str(self.tempdir), result.stdout)
+        self.assertNotIn(str(SCRIPT), result.stdout)
+        self.assertEqual(self.snapshot_tree(self.tempdir), before)
+
     def test_installed_drift_blocks_upgrade_without_path_leakage(self):
         result = InstallSkillTests.install(self)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
