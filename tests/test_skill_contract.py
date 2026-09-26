@@ -522,6 +522,50 @@ class SkillContractTests(unittest.TestCase):
             ),
         )
 
+    def test_3_1_public_materials_define_macos_candidate_boundary(self):
+        release_path = ROOT / "docs" / "release-3.1.0.md"
+        acceptance_path = ROOT / "docs" / "macos-acceptance-3.1.md"
+        self.assertTrue(release_path.is_file(), "3.1 release note is missing")
+        self.assertTrue(acceptance_path.is_file(), "Mac acceptance guide is missing")
+        release = release_path.read_text(encoding="utf-8")
+        acceptance = acceptance_path.read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        limitations = (ROOT / "docs" / "limitations.md").read_text(
+            encoding="utf-8"
+        )
+        public_materials = release + acceptance + readme + limitations
+
+        for required in (
+            "Apple Silicon",
+            "Python 3.11+",
+            "CPython 3.14.7",
+            "2026 Mac mini（M6）",
+            "Vibe-Leader-3.1.0-GitHub.zip",
+            "release_archive.py",
+            "SHA256SUMS.txt",
+            "不接入外部 Jev",
+            "13 个文件",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, public_materials)
+
+        self.assertIn("候选回滚", acceptance)
+        self.assertIn("稳定版实装", acceptance)
+        self.assertIn("Intel Mac 未验收", limitations)
+        self.assertIn("WSL 测试不是 Mac 原生验证", public_materials)
+        self.assertIn(
+            "用户观察前不得声称 Codex App 验收完成",
+            public_materials,
+        )
+        for unsupported_claim in (
+            "WSL 模拟测试已证明 Mac 原生通过",
+            "Codex App 验收已完成",
+            "结论：Mac 本机就绪",
+            "结论：兼容验收通过",
+        ):
+            with self.subTest(unsupported_claim=unsupported_claim):
+                self.assertNotIn(unsupported_claim, public_materials)
+
     def test_openai_metadata_is_chinese_and_explicit_only(self):
         text = read("agents/openai.yaml")
 

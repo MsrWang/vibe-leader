@@ -1,5 +1,9 @@
 # Vibe Leader
 
+> **3.1.0 macOS 候选准备：Apple Silicon 平台原语与确定性发行资产**
+> 通用设计目标为 macOS 14+、Apple Silicon M1+ 和稳定版 Python 3.11+；新安装推荐 CPython 3.14.7。2026 Mac mini（M6）与 macOS 27 稳定补丁版本是参考验收目标，真实 Mac 验收尚未完成。
+> 候选将使用 `Vibe-Leader-3.1.0-GitHub.zip`、`release_archive.py` 和 `SHA256SUMS.txt` 三个固定资产；当前仅完成本地准备，不代表已经发布、安装或被 Codex App 验收。[查看 3.1 候选边界](docs/release-3.1.0.md)和[Mac 验收步骤](docs/macos-acceptance-3.1.md)。
+
 > **3.0.3 维护更新：大文件、多文件和长日志先做本地证据筛选**
 > 可安装 Skill 现在包含 13 个文件。证据筛选器仅在调查材料较大且被显式调用时运行，先做本地相关性排序，再从未变化的源文件精确回读；小范围调查可直接绕过。
 > 随包实现不调用 Jev API、不读取凭据、不选择模型或 Agent，也不判断任务是否完成。聚焦检查、完整回归、限定环境安装和新任务重新加载分别核对；长期自然任务仍需观察。[查看 3.0.3 变化与限制](docs/release-3.0.3.md)。
@@ -22,7 +26,7 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 
 **这页先帮你了解用途和使用方式。** 负责安装、升级或维护的人，请看[安装与使用指南（技术向）](docs/getting-started.md)。
 
-[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [查看版本下载页](https://github.com/MsrWang/vibe-leader/releases) · [3.0.3 变化与限制](docs/release-3.0.3.md) · [安装与使用指南](docs/getting-started.md)
+[先看在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) · [快速开始](#快速开始) · [查看版本下载页](https://github.com/MsrWang/vibe-leader/releases) · [3.1 候选边界](docs/release-3.1.0.md) · [3.0.3 稳定版说明](docs/release-3.0.3.md) · [安装与使用指南](docs/getting-started.md)
 
 ## 快速开始
 
@@ -34,7 +38,7 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 
 从[版本下载页](https://github.com/MsrWang/vibe-leader/releases)选择所需版本的完整源码 ZIP，保留包内文件，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成安装。3.0.3 增加可选的本地证据筛选器；3.0.2 或更早安装需要按受控升级流程更新实际安装才能获得这两个新文件。首次安装或升级后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
 
-**已验证环境：Windows Codex Desktop 配合 Ubuntu/WSL。** 安装所需的 Python、Git、目录确认，以及已有版本的升级步骤，都在技术指南中说明；其他环境需先核对兼容性。
+**稳定版已验证环境：Windows Codex Desktop 配合 Ubuntu/WSL。** 3.1 的 macOS 14+、Apple Silicon M1+ 和稳定版 CPython 3.11–3.14 目前是设计目标；2026 Mac mini（M6）、macOS 27 稳定补丁版本和 CPython 3.14.7 是参考验收目标。WSL 测试不是 Mac 原生验证，真实 Mac 技术检查和 Codex App 用户观察仍须按验收指南完成。
 
 ### 3. 在你的项目里调用
 
@@ -94,7 +98,7 @@ demo/                       HF 静态使用示例
 
 2.3 已完成独立源码交付及限定环境的用户接受；真实安装、代表任务、暂停/只读恢复、两项目绑定、停用/启用及旧版恢复有各自范围证据。详细结论和保留警告见[2.3 验证说明](docs/release-2.3.md)。3.0.0 新增用法的范围见[3.0.0 说明](docs/release-3.0.md)；连续推进规则见[3.0.1 说明](docs/release-3.0.1.md)；轻量纠偏的证据与未覆盖场景见[3.0.2 说明](docs/release-3.0.2.md)；本地证据筛选的范围见[3.0.3 说明](docs/release-3.0.3.md)。
 
-这套方法提供工作规则，**不能隔离文件或代替权限设置**，模型仍可能偏离规则。Codex 使用的模型服务可能接收项目上下文；在本地操作不等于离线。具体兼容性、安装与数据边界见[已知限制](docs/limitations.md)。
+这套方法提供工作规则，**不能隔离文件或代替权限设置**，模型仍可能偏离规则。Codex 使用的模型服务可能接收项目上下文；在本地操作不等于离线。3.1 不接入外部 Jev，可安装 Skill 仍为 13 个文件；用户观察前不得声称 Codex App 验收完成。具体兼容性、安装与数据边界见[已知限制](docs/limitations.md)。
 
 <details>
 <summary>开发者可展开查看源码自检命令</summary>
