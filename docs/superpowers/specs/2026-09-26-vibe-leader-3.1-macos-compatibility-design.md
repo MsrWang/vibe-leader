@@ -130,6 +130,8 @@ Darwin 目录切换后端优先使用 `renameatx_np` 或等价的 Darwin 原生�
 
 `preflight` 本身必须能在需要升级的旧运行时上启动。安装器源码保持 Python 3.10 语法可解析，并把 Python 3.11 才提供的 `tomllib` 作为可缺失导入处理；只读预检不依赖 TOML。缺少 `tomllib` 的 Python 3.10 运行时仍须输出九字段报告和 `PYTHON_UPDATE_REQUIRED`，而需要 TOML 的其他命令继续失败关闭，不能因访问空模块产生未处理异常。
 
+旧运行时兼容只为执行只读 `preflight`。`main()` 在参数解析完成后、任何非 `preflight` 命令分发前执行唯一的 Python 运行时门：低于 3.11 返回一行 `refused` JSON、原因 `PYTHON_UPDATE_REQUIRED` 和退出码 4；平台事实不可取得、非 CPython、预发布版或 3.15+ 返回 `RUNTIME_UNVERIFIED` 和退出码 4。该门不得调用命令函数或产生文件系统写入，缺少 `tomllib` 不能成为安装、升级、恢复或其他写命令继续执行的降级路径。
+
 macOS 支持下限由同一九字段报告中的平台事实表达，不增加顶层字段。`platform.mac_ver()[0]` 低于 14 时返回 `MACOS_UPDATE_REQUIRED`；缺失或无法解析时返回 `MACOS_VERSION_UNVERIFIED`。仅在平台事实声明 `darwin` 时应用该版本门，既有非 Darwin 的 `PLATFORM_UNSUPPORTED` 行为保持不变。
 
 安装前只能证明“用户选择了一个符合官方用户级规则或显式覆盖规则的目标目录”。Codex App 是否实际使用该目录，需要安装后的唯一 locator 和新任务显式调用来证明；设计不要求用尚未安装的 Skill 反向证明安装前路径。

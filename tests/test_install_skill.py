@@ -2832,6 +2832,119 @@ raise SystemExit(module["main"]())
         self.assertNotIn(str(self.tempdir), result.stdout)
         self.assertEqual(self.snapshot_tree(self.tempdir), before)
 
+    def test_install_cli_blocks_python_below_floor_before_dispatch(self):
+        dispatch_marker = self.tempdir / "install-was-dispatched"
+        program = r'''
+import importlib.abc
+import json
+from pathlib import Path
+import runpy
+import sys
+
+class BlockTomllib(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "tomllib":
+            raise ModuleNotFoundError("blocked tomllib", name=fullname)
+        return None
+
+sys.modules.pop("tomllib", None)
+sys.meta_path.insert(0, BlockTomllib())
+script, source, skills_root, dispatch_marker = sys.argv[1:]
+module = runpy.run_path(script, run_name="install_skill_runtime_gate_test")
+globals_ = module["main"].__globals__
+globals_["_platform_facts"] = lambda: {
+    "system": "darwin",
+    "machine": "arm64",
+    "macos_version": "27.0",
+    "python_implementation": "CPython",
+    "python_version": "3.10.14",
+    "python_releaselevel": "final",
+}
+
+def dispatched_install(*args):
+    Path(dispatch_marker).write_text("dispatched", encoding="utf-8")
+    return 0
+
+globals_["install"] = dispatched_install
+sys.argv = [
+    script,
+    "install",
+    "--source", source,
+    "--skills-root", skills_root,
+]
+raise SystemExit(module["main"]())
+'''
+        before = self.snapshot_tree(self.tempdir)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                "-c",
+                program,
+                str(SCRIPT),
+                str(self.source),
+                str(self.skills_root),
+                str(dispatch_marker),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "CODEX_HOME": str(self.codex_home)},
+        )
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(len(result.stdout.splitlines()), 1)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["status"], "refused")
+        self.assertEqual(payload["reason"], "PYTHON_UPDATE_REQUIRED")
+        self.assertFalse(dispatch_marker.exists())
+        self.assertEqual(self.snapshot_tree(self.tempdir), before)
+
+    def test_non_preflight_cli_blocks_unverified_runtime_before_dispatch(self):
+        arguments = [
+            str(SCRIPT),
+            "install",
+            "--source", str(self.source),
+            "--skills-root", str(self.skills_root),
+        ]
+        cases = {
+            "non_cpython": ({
+                "system": "darwin",
+                "machine": "arm64",
+                "macos_version": "27.0",
+                "python_implementation": "PyPy",
+                "python_version": "3.14.7",
+                "python_releaselevel": "final",
+            }, None),
+            "facts_unavailable": (None, Exception("platform facts unavailable")),
+        }
+        for name, (facts, error) in cases.items():
+            with self.subTest(case=name):
+                dispatched = []
+
+                def install_would_dispatch(*args):
+                    dispatched.append(True)
+                    return 0
+
+                before = self.snapshot_tree(self.tempdir)
+                output = io.StringIO()
+                with mock.patch.object(sys, "argv", arguments), mock.patch.object(
+                    INSTALLER,
+                    "_platform_facts",
+                    return_value=facts,
+                    side_effect=error,
+                ), mock.patch.object(
+                    INSTALLER, "install", side_effect=install_would_dispatch,
+                ), redirect_stdout(output):
+                    result = INSTALLER.main()
+                self.assertEqual(dispatched, [])
+                self.assertEqual(result, 4)
+                self.assertEqual(len(output.getvalue().splitlines()), 1)
+                payload = json.loads(output.getvalue())
+                self.assertEqual(payload["status"], "refused")
+                self.assertEqual(payload["reason"], "RUNTIME_UNVERIFIED")
+                self.assertEqual(self.snapshot_tree(self.tempdir), before)
+
     def test_unavailable_platform_facts_return_a_redacted_report(self):
         report = self.assert_not_ready(
             "PLATFORM_FACTS_UNAVAILABLE", platform_error=OSError(str(self.tempdir)),

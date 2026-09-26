@@ -7806,6 +7806,12 @@ def main() -> int:
             report = build_preflight(args.source, args.skills_root, args.selection_source)
             print(json.dumps(report, ensure_ascii=False, sort_keys=True))
             return 0 if report["status"] == "READY" else 4
+        try:
+            runtime_reason = _python_runtime_reason(_platform_facts())
+        except Exception:
+            runtime_reason = "RUNTIME_UNVERIFIED"
+        if runtime_reason is not None:
+            raise InstallError(runtime_reason, 4)
         if args.command == "install":
             return install(args.source, args.skills_root)
         if args.command == "verify":

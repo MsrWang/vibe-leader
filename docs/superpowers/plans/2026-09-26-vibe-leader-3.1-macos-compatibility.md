@@ -768,11 +768,13 @@ git commit -m "fix: define macOS Python compatibility contract"
 
 **Interfaces:**
 - Consumes: Task 5A 的 Python 运行时分类和九字段只读预检报告。
-- Produces: 缺少 `tomllib` 时仍可启动的 `preflight`；`macos_version` 平台事实；macOS 14+ 分类。
+- Produces: 缺少 `tomllib` 时仍可启动的 `preflight`；所有非预检命令共享的失败关闭 Python 运行时门；`macos_version` 平台事实；macOS 14+ 分类。
 
 - [ ] **Step 1: 写启动期和 macOS 边界失败测试**
 
 新增可执行级子进程测试：导入阻断器让 `tomllib` 不可用，模拟 Darwin/arm64、macOS 27 和稳定版 CPython 3.10.14，执行公开 `preflight` CLI，要求退出 4、只输出一行九字段 JSON、原因精确为 `PYTHON_UPDATE_REQUIRED`，并保持目录逐字节不变。使用 `ast.parse(..., feature_version=(3, 10))` 验证安装器源码保持 Python 3.10 语法可解析。
+
+同一导入阻断器再执行 `install`：在子进程中把 `install()` 替换为会留下分发标记的测试函数，要求运行时门先返回一行 `refused` JSON、退出 4 和 `PYTHON_UPDATE_REQUIRED`，分发标记不存在，完整目录快照逐字节不变。另以非 CPython 和平台事实读取异常验证 `RUNTIME_UNVERIFIED`，并断言命令函数未被调用。
 
 默认平台事实增加 `macos_version`。新增精确边界：13.x 返回 `MACOS_UPDATE_REQUIRED`；14.x 和 27.x 保持 `READY`；缺失或畸形版本返回 `MACOS_VERSION_UNVERIFIED`。TOML 消费者在模块不可用时返回既有失败关闭原因，不能抛出 `AttributeError`。
 
@@ -793,6 +795,8 @@ Expected: FAIL；当前安装器在 `tomllib` 导入阶段退出，且不读取�
 - [ ] **Step 3: 实现可缺失导入和系统版本分类**
 
 用 `try/except ModuleNotFoundError` 导入 `tomllib`。`preflight` 不依赖该模块；TOML 消费者先检查模块是否存在，再返回既有 `toggle_config_invalid`。删除未被执行合同使用的 `RECOMMENDED_PYTHON` 常量，推荐版本继续只由设计和发布文档定义。
+
+`main()` 在处理完 `preflight` 分支后、进入任何其他命令分支前只执行一次 `_python_runtime_reason(_platform_facts())`。平台事实读取失败按 `RUNTIME_UNVERIFIED` 处理；分类返回原因时抛出 `InstallError(reason, 4)`，沿用公开的一行 `refused` JSON。该门覆盖全部八个非预检命令，且位于所有命令函数和文件系统写入之前。
 
 `_platform_facts()` 用 `platform.mac_ver()[0]` 写入 `macos_version`。仅对 Darwin 调用 macOS 分类：主版本低于 14 返回 `MACOS_UPDATE_REQUIRED`；缺失或无法解析返回 `MACOS_VERSION_UNVERIFIED`；14+ 不追加原因。
 
