@@ -716,7 +716,6 @@ Expected: FAIL；当前实现把所有 3.11+ 数字版本都接受，并只返�
 ```python
 MIN_SUPPORTED_PYTHON = (3, 11, 0)
 MAX_EXCLUSIVE_SUPPORTED_PYTHON = (3, 15, 0)
-RECOMMENDED_PYTHON = "3.14.7"
 
 
 def _python_runtime_reason(facts: dict[str, str]) -> str | None:
@@ -755,6 +754,69 @@ git add scripts/install_skill.py tests/test_install_skill.py \
   docs/superpowers/specs/2026-09-26-vibe-leader-3.1-macos-compatibility-design.md \
   docs/superpowers/plans/2026-09-26-vibe-leader-3.1-macos-compatibility.md
 git commit -m "fix: define macOS Python compatibility contract"
+```
+
+---
+
+### Task 5B: 修复旧运行时启动与 macOS 版本门
+
+**Files:**
+- Modify: `scripts/install_skill.py`
+- Modify: `tests/test_install_skill.py`
+- Modify: `docs/superpowers/specs/2026-09-26-vibe-leader-3.1-macos-compatibility-design.md`
+- Modify: `docs/superpowers/plans/2026-09-26-vibe-leader-3.1-macos-compatibility.md`
+
+**Interfaces:**
+- Consumes: Task 5A 的 Python 运行时分类和九字段只读预检报告。
+- Produces: 缺少 `tomllib` 时仍可启动的 `preflight`；`macos_version` 平台事实；macOS 14+ 分类。
+
+- [ ] **Step 1: 写启动期和 macOS 边界失败测试**
+
+新增可执行级子进程测试：导入阻断器让 `tomllib` 不可用，模拟 Darwin/arm64、macOS 27 和稳定版 CPython 3.10.14，执行公开 `preflight` CLI，要求退出 4、只输出一行九字段 JSON、原因精确为 `PYTHON_UPDATE_REQUIRED`，并保持目录逐字节不变。使用 `ast.parse(..., feature_version=(3, 10))` 验证安装器源码保持 Python 3.10 语法可解析。
+
+默认平台事实增加 `macos_version`。新增精确边界：13.x 返回 `MACOS_UPDATE_REQUIRED`；14.x 和 27.x 保持 `READY`；缺失或畸形版本返回 `MACOS_VERSION_UNVERIFIED`。TOML 消费者在模块不可用时返回既有失败关闭原因，不能抛出 `AttributeError`。
+
+- [ ] **Step 2: 运行新测试并确认失败**
+
+Run:
+
+```bash
+python3 -B -m unittest -v \
+  tests.test_install_skill.MacPreflightTests.test_preflight_cli_reports_python_update_when_tomllib_is_unavailable \
+  tests.test_install_skill.MacPreflightTests.test_macos_below_floor_requires_update \
+  tests.test_install_skill.MacPreflightTests.test_supported_macos_versions_are_ready \
+  tests.test_install_skill.MacPreflightTests.test_unverified_macos_version_is_not_ready
+```
+
+Expected: FAIL；当前安装器在 `tomllib` 导入阶段退出，且不读取或分类 macOS 版本。
+
+- [ ] **Step 3: 实现可缺失导入和系统版本分类**
+
+用 `try/except ModuleNotFoundError` 导入 `tomllib`。`preflight` 不依赖该模块；TOML 消费者先检查模块是否存在，再返回既有 `toggle_config_invalid`。删除未被执行合同使用的 `RECOMMENDED_PYTHON` 常量，推荐版本继续只由设计和发布文档定义。
+
+`_platform_facts()` 用 `platform.mac_ver()[0]` 写入 `macos_version`。仅对 Darwin 调用 macOS 分类：主版本低于 14 返回 `MACOS_UPDATE_REQUIRED`；缺失或无法解析返回 `MACOS_VERSION_UNVERIFIED`；14+ 不追加原因。
+
+- [ ] **Step 4: 运行聚焦回归和静态检查**
+
+Run:
+
+```bash
+python3 -B -m unittest -v tests.test_install_skill.MacPreflightTests
+python3 -B -m unittest -v \
+  tests.test_install_skill.ReceiptBoundRestoreAndToggleTests \
+  tests.test_staging_recovery.PublicInstallerBoundaryTests
+git diff --check
+```
+
+Expected: PASS；九字段、只读和脱敏合同保持不变，公开命令仍可启动。
+
+- [ ] **Step 5: 提交审查修复**
+
+```bash
+git add scripts/install_skill.py tests/test_install_skill.py \
+  docs/superpowers/specs/2026-09-26-vibe-leader-3.1-macos-compatibility-design.md \
+  docs/superpowers/plans/2026-09-26-vibe-leader-3.1-macos-compatibility.md
+git commit -m "fix: enforce macOS preflight runtime floors"
 ```
 
 ---

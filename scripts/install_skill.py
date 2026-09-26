@@ -23,12 +23,16 @@ import stat
 import subprocess
 import sys
 import tempfile
-import tomllib
 import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    tomllib = None
 
 
 LEGACY_INSTALL_SCHEMA_VERSION = 1
@@ -50,7 +54,7 @@ PREFLIGHT_SCHEMA_VERSION = 1
 PREFLIGHT_SELECTION_SOURCES = frozenset({"CODEX_HOME", "EXPLICIT_SKILLS_ROOT"})
 MIN_SUPPORTED_PYTHON = (3, 11, 0)
 MAX_EXCLUSIVE_SUPPORTED_PYTHON = (3, 15, 0)
-RECOMMENDED_PYTHON = "3.14.7"
+MIN_SUPPORTED_MACOS_MAJOR = 14
 SKILL_NAME = "vibe-project-lead-zh"
 MANIFEST_NAME = "install-manifest.json"
 PREPARED_MANIFEST_NAME = "prepared-manifest.json"
@@ -4002,6 +4006,7 @@ def _platform_facts() -> dict[str, str]:
     return {
         "system": sys.platform,
         "machine": platform.machine().lower(),
+        "macos_version": platform.mac_ver()[0],
         "python_implementation": platform.python_implementation(),
         "python_version": platform.python_version(),
         "python_releaselevel": sys.version_info.releaselevel,
@@ -4022,6 +4027,15 @@ def _python_runtime_reason(facts: dict[str, str]) -> str | None:
         return "PYTHON_UPDATE_REQUIRED"
     if parsed >= MAX_EXCLUSIVE_SUPPORTED_PYTHON:
         return "RUNTIME_UNVERIFIED"
+    return None
+
+
+def _macos_runtime_reason(facts: dict[str, str]) -> str | None:
+    version = re.fullmatch(r"(\d+)(?:\.\d+){0,2}", facts.get("macos_version", ""))
+    if version is None:
+        return "MACOS_VERSION_UNVERIFIED"
+    if int(version.group(1)) < MIN_SUPPORTED_MACOS_MAJOR:
+        return "MACOS_UPDATE_REQUIRED"
     return None
 
 
@@ -4079,6 +4093,10 @@ def build_preflight(
     report["platform"] = facts
     if facts.get("system") != "darwin":
         reasons.append("PLATFORM_UNSUPPORTED")
+    else:
+        macos_reason = _macos_runtime_reason(facts)
+        if macos_reason is not None:
+            reasons.append(macos_reason)
     if facts.get("machine") != "arm64":
         reasons.append("ARCHITECTURE_UNSUPPORTED")
     runtime_reason = _python_runtime_reason(facts)
@@ -7353,6 +7371,8 @@ def _toggle_inventory_identity(
 
 
 def _config_skill_state(content: bytes, locator: Path) -> tuple[str, bool]:
+    if tomllib is None:
+        raise InstallError("toggle_config_invalid")
     try:
         parsed = tomllib.loads(content.decode("utf-8"))
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:

@@ -3,6 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import ast
 import base64
 import copy
 import errno
@@ -2514,6 +2515,7 @@ class MacPreflightTests(unittest.TestCase):
         with mock.patch.object(INSTALLER, "_platform_facts", side_effect=platform_error, return_value=facts or {
             "system": "darwin",
             "machine": "arm64",
+            "macos_version": "27.0",
             "python_implementation": "CPython",
             "python_version": "3.14.7",
             "python_releaselevel": "final",
@@ -2662,6 +2664,7 @@ class MacPreflightTests(unittest.TestCase):
                 facts = {
                     "system": "darwin",
                     "machine": "arm64",
+                    "macos_version": "27.0",
                     "python_implementation": "CPython",
                     "python_version": "3.14.7",
                     "python_releaselevel": "final",
@@ -2675,6 +2678,7 @@ class MacPreflightTests(unittest.TestCase):
                 report = self.preflight(facts={
                     "system": "darwin",
                     "machine": "arm64",
+                    "macos_version": "27.0",
                     "python_implementation": "CPython",
                     "python_version": version,
                     "python_releaselevel": "final",
@@ -2686,6 +2690,7 @@ class MacPreflightTests(unittest.TestCase):
         report = self.preflight(facts={
             "system": "darwin",
             "machine": "arm64",
+            "macos_version": "27.0",
             "python_implementation": "CPython",
             "python_version": "3.10.14",
             "python_releaselevel": "final",
@@ -2697,6 +2702,7 @@ class MacPreflightTests(unittest.TestCase):
         base = {
             "system": "darwin",
             "machine": "arm64",
+            "macos_version": "27.0",
             "python_implementation": "CPython",
             "python_version": "3.14.7",
             "python_releaselevel": "final",
@@ -2716,6 +2722,115 @@ class MacPreflightTests(unittest.TestCase):
                 report = self.preflight(facts=facts)
                 self.assertEqual(report["status"], "NOT_READY")
                 self.assertEqual(report["reasons"], ["RUNTIME_UNVERIFIED"])
+
+    def test_platform_facts_include_macos_version(self):
+        with mock.patch.object(
+            INSTALLER.platform, "mac_ver", return_value=("27.1", ("", "", ""), "arm64"),
+        ):
+            facts = INSTALLER._platform_facts()
+        self.assertEqual(facts["macos_version"], "27.1")
+
+    def test_macos_below_floor_requires_update(self):
+        report = self.preflight(facts={
+            "system": "darwin",
+            "machine": "arm64",
+            "macos_version": "13.7.8",
+            "python_implementation": "CPython",
+            "python_version": "3.14.7",
+            "python_releaselevel": "final",
+        })
+        self.assertEqual(report["status"], "NOT_READY")
+        self.assertEqual(report["reasons"], ["MACOS_UPDATE_REQUIRED"])
+
+    def test_supported_macos_versions_are_ready(self):
+        for version in ("14.0", "14.7.8", "27.0"):
+            with self.subTest(version=version):
+                report = self.preflight(facts={
+                    "system": "darwin",
+                    "machine": "arm64",
+                    "macos_version": version,
+                    "python_implementation": "CPython",
+                    "python_version": "3.14.7",
+                    "python_releaselevel": "final",
+                })
+                self.assertEqual(report["status"], "READY")
+                self.assertEqual(report["reasons"], [])
+
+    def test_unverified_macos_version_is_not_ready(self):
+        base = {
+            "system": "darwin",
+            "machine": "arm64",
+            "macos_version": "27.0",
+            "python_implementation": "CPython",
+            "python_version": "3.14.7",
+            "python_releaselevel": "final",
+        }
+        cases = {
+            "missing": {
+                key: value for key, value in base.items() if key != "macos_version"
+            },
+            "malformed": {**base, "macos_version": "version-unknown"},
+        }
+        for name, facts in cases.items():
+            with self.subTest(case=name):
+                report = self.preflight(facts=facts)
+                self.assertEqual(report["status"], "NOT_READY")
+                self.assertEqual(report["reasons"], ["MACOS_VERSION_UNVERIFIED"])
+
+    def test_installer_source_parses_as_python_3_10(self):
+        ast.parse(SCRIPT.read_text(encoding="utf-8"), feature_version=(3, 10))
+
+    def test_preflight_cli_reports_python_update_when_tomllib_is_unavailable(self):
+        program = r'''
+import importlib.abc
+import json
+import runpy
+import sys
+
+class BlockTomllib(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "tomllib":
+            raise ModuleNotFoundError("blocked tomllib", name=fullname)
+        return None
+
+sys.modules.pop("tomllib", None)
+sys.meta_path.insert(0, BlockTomllib())
+script, source, skills_root = sys.argv[1:]
+module = runpy.run_path(script, run_name="install_skill_runtime_floor_test")
+module["main"].__globals__["_platform_facts"] = lambda: {
+    "system": "darwin",
+    "machine": "arm64",
+    "macos_version": "27.0",
+    "python_implementation": "CPython",
+    "python_version": "3.10.14",
+    "python_releaselevel": "final",
+}
+sys.argv = [
+    script,
+    "preflight",
+    "--source", source,
+    "--skills-root", skills_root,
+    "--selection-source", "CODEX_HOME",
+]
+raise SystemExit(module["main"]())
+'''
+        before = self.snapshot_tree(self.tempdir)
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", program, str(SCRIPT), str(self.source), str(self.skills_root)],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "CODEX_HOME": str(self.codex_home)},
+        )
+        self.assertEqual(result.returncode, 4, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(len(result.stdout.splitlines()), 1)
+        report = json.loads(result.stdout)
+        self.assertEqual(set(report), PREFLIGHT_KEYS)
+        self.assertEqual(report["status"], "NOT_READY")
+        self.assertEqual(report["reasons"], ["PYTHON_UPDATE_REQUIRED"])
+        self.assertNotIn(str(self.tempdir), result.stdout)
+        self.assertEqual(self.snapshot_tree(self.tempdir), before)
 
     def test_unavailable_platform_facts_return_a_redacted_report(self):
         report = self.assert_not_ready(
@@ -2791,6 +2906,7 @@ class MacPreflightTests(unittest.TestCase):
                 INSTALLER, "_platform_facts", return_value={
                     "system": system,
                     "machine": "arm64",
+                    "macos_version": "27.0",
                     "python_implementation": "CPython",
                     "python_version": "3.14.7",
                     "python_releaselevel": "final",
@@ -6709,6 +6825,12 @@ class ReceiptBoundRestoreAndToggleTests(unittest.TestCase):
                     approval_id="TOGGLE-REQUEST-TEST-002",
                 )
         self.assertEqual(raised.exception.reason, "toggle_supervisor_not_unique")
+
+    def test_toggle_config_fails_closed_when_tomllib_is_unavailable(self):
+        with mock.patch.object(INSTALLER, "tomllib", None):
+            with self.assertRaises(INSTALLER.InstallError) as raised:
+                INSTALLER._config_skill_state(b"preserve = true\n", self.target / "SKILL.md")
+        self.assertEqual(raised.exception.reason, "toggle_config_invalid")
 
     def test_toggle_request_does_not_edit_config(self):
         config = self.codex_home / "config.toml"

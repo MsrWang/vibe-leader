@@ -2,7 +2,7 @@
 
 日期：2026-09-26
 
-状态：用户已于 2026-09-26 确认原设计；Task 1–5 已实施；用户于 2026-09-27 确认通用 macOS 与 Python 版本合同修订
+状态：用户已于 2026-09-26 确认原设计；Task 1–5A 已实施；用户于 2026-09-27 确认通用 macOS 与 Python 版本合同修订；Task 5B 修复审查发现的启动期与系统版本门缺口
 
 代码基线：Vibe Leader 3.0.3，提交 `d0e17544584fb6c68254c49b87f4275fa19a71f4`
 
@@ -118,7 +118,7 @@ Darwin 目录切换后端优先使用 `renameatx_np` 或等价的 Darwin 原生�
 
 安装器增加只读 `preflight` 入口，输出结构化结果并检查：
 
-- 平台、CPU 架构和 Python 版本；
+- 平台、macOS 版本、CPU 架构和 Python 版本；
 - 源 Skill 的精确文件清单与摘要；
 - 用户明确提供的 `skills-root` 是否存在、规范化且不含符号链接；
 - 目标 Skill 与安装状态目录是否已存在；
@@ -127,6 +127,10 @@ Darwin 目录切换后端优先使用 `renameatx_np` 或等价的 Darwin 原生�
 - 仍需在写入阶段执行的能力探针。
 
 预检不创建目录、不写探针、不修改真实 `CODEX_HOME`，也不把“常见位置”当成当前 Codex App 的实际发现根。OpenAI 官方资料把 `~/.codex/skills` 定义为用户级 Skill 位置；本项目只把它作为标准候选。执行者仍须显式提供本次 `CODEX_HOME` 或 `skills-root`，预检记录选择来源，安装器不搜索相邻目录或自动改用另一份配置。
+
+`preflight` 本身必须能在需要升级的旧运行时上启动。安装器源码保持 Python 3.10 语法可解析，并把 Python 3.11 才提供的 `tomllib` 作为可缺失导入处理；只读预检不依赖 TOML。缺少 `tomllib` 的 Python 3.10 运行时仍须输出九字段报告和 `PYTHON_UPDATE_REQUIRED`，而需要 TOML 的其他命令继续失败关闭，不能因访问空模块产生未处理异常。
+
+macOS 支持下限由同一九字段报告中的平台事实表达，不增加顶层字段。`platform.mac_ver()[0]` 低于 14 时返回 `MACOS_UPDATE_REQUIRED`；缺失或无法解析时返回 `MACOS_VERSION_UNVERIFIED`。仅在平台事实声明 `darwin` 时应用该版本门，既有非 Darwin 的 `PLATFORM_UNSUPPORTED` 行为保持不变。
 
 安装前只能证明“用户选择了一个符合官方用户级规则或显式覆盖规则的目标目录”。Codex App 是否实际使用该目录，需要安装后的唯一 locator 和新任务显式调用来证明；设计不要求用尚未安装的 Skill 反向证明安装前路径。
 
