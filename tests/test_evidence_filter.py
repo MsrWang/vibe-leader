@@ -163,7 +163,8 @@ class EvidenceFilterTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "OK")
         self.assertEqual(result["items"][0]["text"], "inventory evidence")
-        root_opens = [item for item in opens if item[0] == str(self.root)]
+        root_path = os.path.abspath(".")
+        root_opens = [item for item in opens if item[0] == root_path]
         directory_opens = [item for item in opens if item[0] == b"nested"]
         leaf_opens = [item for item in opens if item[0] == b"source.txt"]
         self.assertEqual(len(root_opens), 1)
@@ -183,15 +184,35 @@ class EvidenceFilterTests(unittest.TestCase):
         )
 
     def test_linux_backend_keeps_proc_fd_identity_proof(self):
-        self.write_text("source.txt", "inventory evidence")
-        original_readlink = os.readlink
-        with mock.patch.object(EVIDENCE_FILTER.sys, "platform", "linux"):
-            with mock.patch.object(EVIDENCE_FILTER.os, "readlink", wraps=original_readlink) as readlink:
+        source = self.write_text("source.txt", "inventory evidence")
+        root_metadata = os.stat(self.root)
+        source_metadata = os.stat(source)
+        descriptor_paths = {
+            (root_metadata.st_dev, root_metadata.st_ino): os.path.realpath(self.root),
+            (source_metadata.st_dev, source_metadata.st_ino): os.path.realpath(source),
+        }
+
+        def descriptor_readlink(path, *args, **kwargs):
+            value = os.fspath(path)
+            if args or kwargs or not value.startswith("/proc/self/fd/"):
+                raise AssertionError(f"unexpected readlink call: {path!r}")
+            metadata = os.fstat(int(value.rsplit("/", 1)[1]))
+            identity = (metadata.st_dev, metadata.st_ino)
+            if identity not in descriptor_paths:
+                raise AssertionError(f"unexpected descriptor identity: {identity!r}")
+            return descriptor_paths[identity]
+
+        with mock.patch.object(
+            EVIDENCE_FILTER,
+            "_secure_read_backend",
+            return_value=EVIDENCE_FILTER.LINUX_SECURE_READ,
+        ):
+            with mock.patch.object(EVIDENCE_FILTER.os, "O_PATH", 0, create=True):
                 with mock.patch.object(
                     EVIDENCE_FILTER.os,
-                    "supports_dir_fd",
-                    set(os.supports_dir_fd) | {readlink},
-                ):
+                    "readlink",
+                    side_effect=descriptor_readlink,
+                ) as readlink:
                     result = self.screen("inventory", ["source.txt"])
         self.assertEqual(result["status"], "OK")
         self.assertEqual(result["items"][0]["text"], "inventory evidence")

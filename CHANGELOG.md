@@ -5,6 +5,7 @@
 - 为 Darwin 增加安全证据读取、APFS 文件系统身份和不可覆盖目录切换后端；Linux/WSL 既有路径保持独立。
 - 增加只读 `preflight`：通用设计目标为 macOS 14+、Apple Silicon M1+ 和稳定版 CPython 3.11–3.14（最低 3.11；新安装推荐 3.14.7）；3.15+ 保持 `RUNTIME_UNVERIFIED`。2026 Mac mini（M6）仅为参考验收目标，不是已验证结论。
 - 增加从固定提交构建、校验和排他解包的确定性发行工具；发行资产固定为 `Vibe-Leader-3.1.0-GitHub.zip`、`release_archive.py` 和 `SHA256SUMS.txt`。
+- 修正 Mac 原生证据筛选套件的测试可移植性：Darwin 根路径按规范化工作目录核对，Linux `/proc/self/fd` 合同在 Darwin 上使用受控描述符路径见证且不冒充 Linux 原生证据。
 - 可安装 Skill 仍为 13 个文件；主管定位、授权合同和本地证据筛选范围不变，不接入外部 Jev，也不增加项目级模块调度。
 - WSL 回归不能替代 Mac 技术检查、Codex App 用户观察或平台发布回读；生命周期状态由外部 Release 元数据和经签名或平台回读的收据建立，包内变更记录不声明当前发布阶段。
 

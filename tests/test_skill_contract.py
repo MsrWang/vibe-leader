@@ -589,6 +589,14 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("外部动作分别批准", release + acceptance)
         self.assertIn("生命周期状态由外部 Release 元数据", release)
         self.assertIn("经签名或平台回读的收据", release)
+        self.assert_contains_all(
+            acceptance,
+            (
+                "failure、error 和 skip 必须均为 0",
+                "Linux `/proc/self/fd` 合同在 Darwin 上使用受控描述符路径见证",
+                "不把该注入结果记作 Linux 原生证据",
+            ),
+        )
 
         for name, text in (("release", release), ("acceptance", acceptance)):
             for required in (

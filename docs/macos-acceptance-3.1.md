@@ -28,7 +28,7 @@ python3 -c 'import platform, sys; print(platform.python_implementation(), platfo
 set -euo pipefail
 VIBE_PUBLIC_REPO_ID="MsrWang/vibe-leader"
 VIBE_PUBLIC_REPO_URL="https://github.com/MsrWang/vibe-leader.git"
-VIBE_RELEASE_TAG="v3.1.0-rc.1"
+VIBE_RELEASE_TAG="v3.1.0-rc.2"
 VIBE_ACCEPTANCE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/vibe-leader-3.1.XXXXXX")"
 VIBE_PRIVATE_EVIDENCE="$(mktemp -d "${TMPDIR:-/tmp}/vibe-leader-private.XXXXXX")"
 chmod 700 "$VIBE_ACCEPTANCE_ROOT" "$VIBE_PRIVATE_EVIDENCE"
@@ -175,6 +175,8 @@ python3 -B -m unittest -v tests.test_evidence_filter \
 - 符号链接拒绝和特殊文件拒绝：`test_unsafe_paths_symlinks_and_special_files_are_refused`；
 - 来源变更：`test_change_in_unselected_source_discards_selected_excerpts`；
 - Darwin 锚定路径合同：`test_darwin_relative_open_uses_anchored_descriptors`。
+
+完整套件的 failure、error 和 skip 必须均为 0。Linux `/proc/self/fd` 合同在 Darwin 上使用受控描述符路径见证，检查 Linux 分支仍要求描述符路径证明；它不访问 Mac 上不存在的 `/proc`，也不把该注入结果记作 Linux 原生证据。Linux 原生行为继续由 Linux/WSL 回归单独证明。
 
 这是 Mac 原生技术证据，仍不等于 Codex App 发现和用户观察。
 
