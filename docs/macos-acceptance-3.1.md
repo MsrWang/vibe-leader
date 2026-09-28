@@ -6,16 +6,54 @@
 
 WSL 测试不是 Mac 原生验证；用户观察前不得声称 Codex App 验收完成。失败、矛盾或 `UNKNOWN` 时停止，不清理现场后重试。
 
-## 1. 核对系统摘要
+## 1. 核对系统摘要并绑定唯一 Python
 
-在 Mac 本机终端运行只读检查：
+在 Mac 本机终端运行只读检查，随后在同一 shell 中按顺序执行各节，复用同一个解释器。若解释器不符合合同，记录稳定原因并停止：
 
 ```bash
 set -euo pipefail
 sw_vers
-uname -m
+test "$(uname -m)" = "arm64"
 sysctl -n machdep.cpu.brand_string
-python3 -c 'import platform, sys; print(platform.python_implementation(), platform.python_version(), sys.version_info.releaselevel)'
+VIBE_PYTHON="${VIBE_PYTHON:-$(command -v python3 || true)}"
+test -n "$VIBE_PYTHON"
+case "$VIBE_PYTHON" in
+  /*) ;;
+  *) printf '%s\n' 'RUNTIME_UNVERIFIED' >&2; exit 4 ;;
+esac
+VIBE_PYTHON="$("$VIBE_PYTHON" -B - <<'PY'
+import os
+import platform
+import stat
+import sys
+from pathlib import Path
+
+reason = None
+if platform.python_implementation() != "CPython":
+    reason = "RUNTIME_UNVERIFIED"
+elif sys.version_info.releaselevel != "final":
+    reason = "RUNTIME_UNVERIFIED"
+elif sys.version_info < (3, 11):
+    reason = "PYTHON_UPDATE_REQUIRED"
+elif sys.version_info >= (3, 15):
+    reason = "RUNTIME_UNVERIFIED"
+elif platform.machine() != "arm64":
+    reason = "RUNTIME_UNVERIFIED"
+try:
+    executable = Path(sys.executable).resolve(strict=True)
+    metadata = executable.stat()
+except OSError:
+    reason = "RUNTIME_UNVERIFIED"
+if reason is None and (not stat.S_ISREG(metadata.st_mode) or not os.access(executable, os.X_OK)):
+    reason = "RUNTIME_UNVERIFIED"
+if reason is not None:
+    print(reason, file=sys.stderr)
+    raise SystemExit(4)
+print(executable)
+PY
+)"
+"$VIBE_PYTHON" -B -c \
+  'import platform, sys; print(platform.python_implementation(), platform.python_version(), sys.version_info.releaselevel, platform.machine())'
 ```
 
 要求架构为 `arm64`、macOS 主版本不低于 14、Python 属于上述稳定版区间。参考机使用验收当日的 macOS 27 稳定补丁版本和 CPython 3.14.7。系统摘要不能替代后续资产、安装和用户观察。
@@ -33,12 +71,17 @@ VIBE_ACCEPTANCE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/vibe-leader-3.1.XXXXXX")"
 VIBE_PRIVATE_EVIDENCE="$(mktemp -d "${TMPDIR:-/tmp}/vibe-leader-private.XXXXXX")"
 chmod 700 "$VIBE_ACCEPTANCE_ROOT" "$VIBE_PRIVATE_EVIDENCE"
 VIBE_TRUSTED_REPO="$VIBE_ACCEPTANCE_ROOT/public-repo"
-git clone --no-checkout "$VIBE_PUBLIC_REPO_URL" "$VIBE_TRUSTED_REPO"
-test "$(git -C "$VIBE_TRUSTED_REPO" remote get-url origin)" = "$VIBE_PUBLIC_REPO_URL"
-git -C "$VIBE_TRUSTED_REPO" fetch --force origin \
+VIBE_TRUSTED_REPO_PART="$VIBE_TRUSTED_REPO.part"
+test ! -e "$VIBE_TRUSTED_REPO" && test ! -e "$VIBE_TRUSTED_REPO_PART"
+git -c http.version=HTTP/1.1 clone --no-checkout \
+  "$VIBE_PUBLIC_REPO_URL" "$VIBE_TRUSTED_REPO_PART"
+test "$(git -C "$VIBE_TRUSTED_REPO_PART" remote get-url origin)" = "$VIBE_PUBLIC_REPO_URL"
+git -c http.version=HTTP/1.1 -C "$VIBE_TRUSTED_REPO_PART" fetch --force origin \
   "refs/tags/$VIBE_RELEASE_TAG:refs/tags/$VIBE_RELEASE_TAG"
-VIBE_EXPECTED_COMMIT="$(git -C "$VIBE_TRUSTED_REPO" rev-parse "$VIBE_RELEASE_TAG^{commit}")"
+VIBE_EXPECTED_COMMIT="$(git -C "$VIBE_TRUSTED_REPO_PART" rev-parse "$VIBE_RELEASE_TAG^{commit}")"
 test -n "$VIBE_EXPECTED_COMMIT"
+test ! -e "$VIBE_TRUSTED_REPO"
+mv "$VIBE_TRUSTED_REPO_PART" "$VIBE_TRUSTED_REPO"
 ```
 
 `VIBE_PRIVATE_EVIDENCE` 是**私有原始证据**目录，可保存真实绝对路径、完整平台 JSON、安装/升级/恢复收据和失败现场。它不能提交到公开仓库或公开工单。
@@ -51,12 +94,14 @@ test -n "$VIBE_EXPECTED_COMMIT"
 set -euo pipefail
 VIBE_RELEASE_API="https://api.github.com/repos/$VIBE_PUBLIC_REPO_ID/releases/tags/$VIBE_RELEASE_TAG"
 VIBE_RELEASE_JSON="$VIBE_PRIVATE_EVIDENCE/release-api.json"
+VIBE_RELEASE_JSON_PART="$VIBE_RELEASE_JSON.part"
 VIBE_ASSET_INDEX="$VIBE_PRIVATE_EVIDENCE/release-assets.tsv"
 VIBE_ASSET_DIR="$VIBE_ACCEPTANCE_ROOT/assets"
 mkdir -m 700 "$VIBE_ASSET_DIR"
-curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
-  "$VIBE_RELEASE_API" --output "$VIBE_RELEASE_JSON"
-python3 - "$VIBE_RELEASE_JSON" "$VIBE_ASSET_INDEX" "$VIBE_RELEASE_TAG" <<'PY'
+test ! -e "$VIBE_RELEASE_JSON" && test ! -e "$VIBE_RELEASE_JSON_PART"
+curl --http1.1 --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+  "$VIBE_RELEASE_API" --output "$VIBE_RELEASE_JSON_PART"
+"$VIBE_PYTHON" -B - "$VIBE_RELEASE_JSON_PART" "$VIBE_ASSET_INDEX" "$VIBE_RELEASE_TAG" <<'PY'
 import json
 from pathlib import Path
 import re
@@ -95,11 +140,18 @@ with output.open("x", encoding="utf-8") as stream:
         url, digest = found[name]
         stream.write(f"{name}\t{url}\t{digest}\n")
 PY
+ln "$VIBE_RELEASE_JSON_PART" "$VIBE_RELEASE_JSON"
+rm "$VIBE_RELEASE_JSON_PART"
 while IFS=$'\t' read -r VIBE_ASSET_NAME VIBE_ASSET_URL VIBE_ASSET_DIGEST; do
-  curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
-    "$VIBE_ASSET_URL" --output "$VIBE_ASSET_DIR/$VIBE_ASSET_NAME"
-  VIBE_ACTUAL_DIGEST="$(shasum -a 256 "$VIBE_ASSET_DIR/$VIBE_ASSET_NAME" | awk '{print $1}')"
+  VIBE_ASSET_FINAL="$VIBE_ASSET_DIR/$VIBE_ASSET_NAME"
+  VIBE_ASSET_PART="$VIBE_ASSET_FINAL.part"
+  test ! -e "$VIBE_ASSET_FINAL" && test ! -e "$VIBE_ASSET_PART"
+  curl --http1.1 --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+    "$VIBE_ASSET_URL" --output "$VIBE_ASSET_PART"
+  VIBE_ACTUAL_DIGEST="$(shasum -a 256 "$VIBE_ASSET_PART" | awk '{print $1}')"
   test "$VIBE_ACTUAL_DIGEST" = "$VIBE_ASSET_DIGEST"
+  ln "$VIBE_ASSET_PART" "$VIBE_ASSET_FINAL"
+  rm "$VIBE_ASSET_PART"
 done < "$VIBE_ASSET_INDEX"
 ```
 
@@ -119,19 +171,19 @@ shasum -a 256 -c SHA256SUMS.txt
 
 这里绑定了公共仓库、标签提交、GitHub API 三个 digest、下载字节和可信 Git 脚本字节。它不声称能抵御整个 GitHub 账户或渠道失陷。
 
-## 4. 验证、解包和真实根只读预检
+## 4. 验证和解包
 
 只有第 3 节全部通过后，才执行下载的 `release_archive.py`：
 
 ```bash
 set -euo pipefail
 VIBE_EXTRACT_DIR="$VIBE_ACCEPTANCE_ROOT/extracted"
-python3 -B "$VIBE_ASSET_DIR/release_archive.py" verify \
+"$VIBE_PYTHON" -B "$VIBE_ASSET_DIR/release_archive.py" verify \
   --archive "$VIBE_ASSET_DIR/Vibe-Leader-3.1.0-GitHub.zip" \
   --checksums "$VIBE_ASSET_DIR/SHA256SUMS.txt" \
   --expected-commit "$VIBE_EXPECTED_COMMIT" \
   > "$VIBE_PRIVATE_EVIDENCE/archive-verify.json"
-python3 -B "$VIBE_ASSET_DIR/release_archive.py" extract \
+"$VIBE_PYTHON" -B "$VIBE_ASSET_DIR/release_archive.py" extract \
   --archive "$VIBE_ASSET_DIR/Vibe-Leader-3.1.0-GitHub.zip" \
   --checksums "$VIBE_ASSET_DIR/SHA256SUMS.txt" \
   --expected-commit "$VIBE_EXPECTED_COMMIT" \
@@ -142,22 +194,6 @@ VIBE_SOURCE="$VIBE_RELEASE_ROOT/skill/vibe-project-lead-zh"
 test "$(find "$VIBE_SOURCE" -type f | wc -l | tr -d ' ')" = 13
 ```
 
-真实安装根由用户从 Codex App 当前配置和唯一 locator 观察中确认，不由脚本搜索：
-
-```bash
-set -euo pipefail
-: "${VIBE_REAL_CODEX_HOME:?先核对并设置当前 Codex App 的真实 CODEX_HOME}"
-test -d "$VIBE_REAL_CODEX_HOME/skills"
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
-  "$VIBE_RELEASE_ROOT/scripts/install_skill.py" preflight \
-  --source "$VIBE_SOURCE" \
-  --skills-root "$VIBE_REAL_CODEX_HOME/skills" \
-  --selection-source CODEX_HOME \
-  > "$VIBE_PRIVATE_EVIDENCE/real-preflight.json"
-```
-
-要求退出 0、九字段报告为 `READY`、`read_only=true`，安装模式为 `FRESH_INSTALL` 或 `CONTROLLED_UPGRADE`。`pending_write_checks` 仍未完成，不能据此声称安装成功或 Mac 就绪。
-
 ## 5. 原生 Mac 证据筛选技术检查
 
 从已验证解包的候选根运行完整筛选套件：
@@ -165,7 +201,7 @@ CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
 ```bash
 set -euo pipefail
 cd "$VIBE_RELEASE_ROOT"
-python3 -B -m unittest -v tests.test_evidence_filter \
+"$VIBE_PYTHON" -B -m unittest -v tests.test_evidence_filter \
   > "$VIBE_PRIVATE_EVIDENCE/native-evidence-filter.log" 2>&1
 ```
 
@@ -188,11 +224,11 @@ python3 -B -m unittest -v tests.test_evidence_filter \
 set -euo pipefail
 VIBE_TEMP_CODEX_HOME="$VIBE_ACCEPTANCE_ROOT/fresh-codex-home"
 mkdir -m 700 "$VIBE_TEMP_CODEX_HOME" "$VIBE_TEMP_CODEX_HOME/skills"
-CODEX_HOME="$VIBE_TEMP_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_TEMP_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" install \
   --source "$VIBE_SOURCE" --skills-root "$VIBE_TEMP_CODEX_HOME/skills" \
   > "$VIBE_PRIVATE_EVIDENCE/temp-install.json"
-CODEX_HOME="$VIBE_TEMP_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_TEMP_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" verify \
   --target "$VIBE_TEMP_CODEX_HOME/skills/vibe-project-lead-zh" \
   --manifest "$VIBE_TEMP_CODEX_HOME/skills/.vibe-project-lead-zh-install/install-manifest.json" \
@@ -209,15 +245,15 @@ test "$(find "$VIBE_TEMP_CODEX_HOME/skills/vibe-project-lead-zh" -type f | wc -l
 ```bash
 set -euo pipefail
 VIBE_BASELINE_TAG="v3.0.3"
-git -C "$VIBE_TRUSTED_REPO" fetch --force origin \
+git -c http.version=HTTP/1.1 -C "$VIBE_TRUSTED_REPO" fetch --force origin \
   "refs/tags/$VIBE_BASELINE_TAG:refs/tags/$VIBE_BASELINE_TAG"
 VIBE_BASELINE_COMMIT="$(git -C "$VIBE_TRUSTED_REPO" rev-parse "$VIBE_BASELINE_TAG^{commit}")"
 VIBE_BASELINE_REPO="$VIBE_ACCEPTANCE_ROOT/baseline-repo"
-git clone --no-hardlinks "$VIBE_TRUSTED_REPO" "$VIBE_BASELINE_REPO"
+git -c http.version=HTTP/1.1 clone --no-hardlinks "$VIBE_TRUSTED_REPO" "$VIBE_BASELINE_REPO"
 git -C "$VIBE_BASELINE_REPO" checkout --detach "$VIBE_BASELINE_COMMIT"
 VIBE_UPGRADE_CODEX_HOME="$VIBE_ACCEPTANCE_ROOT/upgrade-codex-home"
 mkdir -m 700 "$VIBE_UPGRADE_CODEX_HOME" "$VIBE_UPGRADE_CODEX_HOME/skills"
-CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" install \
   --source "$VIBE_BASELINE_REPO/skill/vibe-project-lead-zh" \
   --skills-root "$VIBE_UPGRADE_CODEX_HOME/skills" \
@@ -235,38 +271,38 @@ cp -p "$VIBE_UPGRADE_MANIFEST" "$VIBE_PRIVATE_EVIDENCE/original-install-manifest
 set -euo pipefail
 VIBE_TEMP_UPGRADE_APPROVAL="MAC-3.1-TEMP-UPGRADE-$(date -u +%Y%m%dT%H%M%SZ)"
 VIBE_TEMP_UPGRADE_REQUEST="$VIBE_PRIVATE_EVIDENCE/temp-upgrade-request.json"
-CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" prepare-upgrade \
   --source "$VIBE_SOURCE" --target "$VIBE_UPGRADE_TARGET" \
   --manifest "$VIBE_UPGRADE_MANIFEST" \
   --approval-id "$VIBE_TEMP_UPGRADE_APPROVAL" \
   --output "$VIBE_TEMP_UPGRADE_REQUEST" \
   > "$VIBE_PRIVATE_EVIDENCE/temp-upgrade-prepared.json"
-VIBE_TEMP_REQUEST_DIGEST="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["request_digest"])' "$VIBE_TEMP_UPGRADE_REQUEST")"
-CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" python3 -B \
+VIBE_TEMP_REQUEST_DIGEST="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["request_digest"])' "$VIBE_TEMP_UPGRADE_REQUEST")"
+CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" upgrade \
   --request "$VIBE_TEMP_UPGRADE_REQUEST" \
   --confirm-request "$VIBE_TEMP_REQUEST_DIGEST" \
   > "$VIBE_PRIVATE_EVIDENCE/temp-upgrade-result.json"
-VIBE_TEMP_UPGRADE_RECEIPT="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["receipt"])' "$VIBE_PRIVATE_EVIDENCE/temp-upgrade-result.json")"
-VIBE_TEMP_UPGRADE_JOURNAL="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["journal"])' "$VIBE_TEMP_UPGRADE_RECEIPT")"
-CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" python3 -B \
+VIBE_TEMP_UPGRADE_RECEIPT="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["receipt"])' "$VIBE_PRIVATE_EVIDENCE/temp-upgrade-result.json")"
+VIBE_TEMP_UPGRADE_JOURNAL="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["journal"])' "$VIBE_TEMP_UPGRADE_RECEIPT")"
+CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" inspect-upgrade \
   --journal "$VIBE_TEMP_UPGRADE_JOURNAL" \
   > "$VIBE_PRIVATE_EVIDENCE/temp-upgrade-inspection.json"
-CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" verify \
   --target "$VIBE_UPGRADE_TARGET" --manifest "$VIBE_UPGRADE_MANIFEST" \
   > "$VIBE_PRIVATE_EVIDENCE/temp-candidate-verify.json"
-VIBE_TEMP_RESTORE_CONFIRM="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["restore_confirmation_digest"])' "$VIBE_TEMP_UPGRADE_RECEIPT")"
+VIBE_TEMP_RESTORE_CONFIRM="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["restore_confirmation_digest"])' "$VIBE_TEMP_UPGRADE_RECEIPT")"
 VIBE_TEMP_RESTORE_APPROVAL="MAC-3.1-TEMP-RESTORE-$(date -u +%Y%m%dT%H%M%SZ)"
-CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" restore-version \
   --receipt "$VIBE_TEMP_UPGRADE_RECEIPT" \
   --approval-id "$VIBE_TEMP_RESTORE_APPROVAL" \
   --confirm "$VIBE_TEMP_RESTORE_CONFIRM" \
   > "$VIBE_PRIVATE_EVIDENCE/temp-restore-result.json"
-CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_UPGRADE_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" verify \
   --target "$VIBE_UPGRADE_TARGET" --manifest "$VIBE_UPGRADE_MANIFEST" \
   > "$VIBE_PRIVATE_EVIDENCE/temp-restored-verify.json"
@@ -276,7 +312,25 @@ diff -r "$VIBE_ORIGINAL_STATE" "$VIBE_UPGRADE_CODEX_HOME/skills/.vibe-project-le
 
 最后两项确认原始 manifest 和状态目录已经恢复。任何失败均保留私有现场，不反向猜测或重复执行。
 
-## 8. 真实安装或升级：单独外部批准
+## 8. 真实根只读预检
+
+真实安装根由用户从 Codex App 当前配置和唯一 locator 观察中确认，不由脚本搜索：
+
+```bash
+set -euo pipefail
+: "${VIBE_REAL_CODEX_HOME:?先核对并设置当前 Codex App 的真实 CODEX_HOME}"
+test -d "$VIBE_REAL_CODEX_HOME/skills"
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
+  "$VIBE_RELEASE_ROOT/scripts/install_skill.py" preflight \
+  --source "$VIBE_SOURCE" \
+  --skills-root "$VIBE_REAL_CODEX_HOME/skills" \
+  --selection-source CODEX_HOME \
+  > "$VIBE_PRIVATE_EVIDENCE/real-preflight.json"
+```
+
+要求退出 0、九字段报告为 `READY`、`read_only=true`，安装模式为 `FRESH_INSTALL` 或 `CONTROLLED_UPGRADE`。`pending_write_checks` 仍未完成，不能据此声称安装成功或 Mac 就绪。
+
+## 9. 真实安装或升级：单独外部批准
 
 GitHub 候选批准、Mac 候选技术检查、真实安装/升级、Codex App 用户观察、候选恢复、GitHub 正式发布、稳定版实装和 Hugging Face 同步是不同外部动作，外部动作分别批准。以下真实命令全部显式绑定先前确认的 `VIBE_REAL_CODEX_HOME`。
 
@@ -284,11 +338,11 @@ GitHub 候选批准、Mac 候选技术检查、真实安装/升级、Codex App �
 
 ```bash
 set -euo pipefail
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" install \
   --source "$VIBE_SOURCE" --skills-root "$VIBE_REAL_CODEX_HOME/skills" \
   > "$VIBE_PRIVATE_EVIDENCE/real-install.json"
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" verify \
   --target "$VIBE_REAL_CODEX_HOME/skills/vibe-project-lead-zh" \
   --manifest "$VIBE_REAL_CODEX_HOME/skills/.vibe-project-lead-zh-install/install-manifest.json" \
@@ -301,7 +355,7 @@ CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
 set -euo pipefail
 VIBE_REAL_UPGRADE_APPROVAL="MAC-3.1-REAL-UPGRADE-$(date -u +%Y%m%dT%H%M%SZ)"
 VIBE_REAL_UPGRADE_REQUEST="$VIBE_PRIVATE_EVIDENCE/real-upgrade-request.json"
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" prepare-upgrade \
   --source "$VIBE_SOURCE" \
   --target "$VIBE_REAL_CODEX_HOME/skills/vibe-project-lead-zh" \
@@ -309,24 +363,24 @@ CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
   --approval-id "$VIBE_REAL_UPGRADE_APPROVAL" \
   --output "$VIBE_REAL_UPGRADE_REQUEST" \
   > "$VIBE_PRIVATE_EVIDENCE/real-upgrade-prepared.json"
-VIBE_REAL_REQUEST_DIGEST="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["request_digest"])' "$VIBE_REAL_UPGRADE_REQUEST")"
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+VIBE_REAL_REQUEST_DIGEST="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["request_digest"])' "$VIBE_REAL_UPGRADE_REQUEST")"
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" upgrade \
   --request "$VIBE_REAL_UPGRADE_REQUEST" \
   --confirm-request "$VIBE_REAL_REQUEST_DIGEST" \
   > "$VIBE_PRIVATE_EVIDENCE/real-upgrade-result.json"
-VIBE_REAL_UPGRADE_RECEIPT="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["receipt"])' "$VIBE_PRIVATE_EVIDENCE/real-upgrade-result.json")"
-VIBE_REAL_UPGRADE_JOURNAL="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["journal"])' "$VIBE_REAL_UPGRADE_RECEIPT")"
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+VIBE_REAL_UPGRADE_RECEIPT="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["receipt"])' "$VIBE_PRIVATE_EVIDENCE/real-upgrade-result.json")"
+VIBE_REAL_UPGRADE_JOURNAL="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["journal"])' "$VIBE_REAL_UPGRADE_RECEIPT")"
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" inspect-upgrade \
   --journal "$VIBE_REAL_UPGRADE_JOURNAL" \
   > "$VIBE_PRIVATE_EVIDENCE/real-upgrade-inspection.json"
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" verify \
   --target "$VIBE_REAL_CODEX_HOME/skills/vibe-project-lead-zh" \
   --manifest "$VIBE_REAL_CODEX_HOME/skills/.vibe-project-lead-zh-install/install-manifest.json" \
   > "$VIBE_PRIVATE_EVIDENCE/real-upgrade-verify.json"
-python3 - \
+"$VIBE_PYTHON" -B - \
   "$VIBE_PRIVATE_EVIDENCE/real-upgrade-inspection.json" \
   "$VIBE_PRIVATE_EVIDENCE/real-upgrade-verify.json" <<'PY'
 import json
@@ -342,7 +396,7 @@ PY
 
 只执行与 `real-preflight.json` 中 `install_mode` 相符的一条路径。受控升级必须先确认检查结果和活动安装核验结果的状态为 `verified`，然后才能进入 Codex App 用户观察。漂移、拒绝、恢复必需或未知均停止。
 
-## 9. Codex App 用户观察
+## 10. Codex App 用户观察
 
 刷新或重新打开 Codex App 后，新建任务。确认只有一个技术标识 `vibe-project-lead-zh`，显示名为“中文跨项目研发主管”，locator 与真实安装根一致。公开收据只记录 locator 的 SHA-256、匹配数量和状态，不记录绝对路径。
 
@@ -353,15 +407,15 @@ PY
 
 再用不含业务信息的两份合成文本，要求显式调用已安装的本地证据筛选器查找一个关键词。用户应看到来源引用、字节范围和本地模式；无匹配不能解释为事实不存在。
 
-## 10. 候选回滚并确认原状态
+## 11. 候选回滚并确认原状态
 
 恢复需要新的独立批准。首次安装使用 `rollback`：
 
 ```bash
 set -euo pipefail
 VIBE_REAL_MANIFEST="$VIBE_REAL_CODEX_HOME/skills/.vibe-project-lead-zh-install/install-manifest.json"
-VIBE_REAL_MANIFEST_DIGEST="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["manifest_digest"])' "$VIBE_REAL_MANIFEST")"
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+VIBE_REAL_MANIFEST_DIGEST="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["manifest_digest"])' "$VIBE_REAL_MANIFEST")"
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" rollback \
   --target "$VIBE_REAL_CODEX_HOME/skills/vibe-project-lead-zh" \
   --manifest "$VIBE_REAL_MANIFEST" --confirm "$VIBE_REAL_MANIFEST_DIGEST" \
@@ -372,10 +426,10 @@ CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
 
 ```bash
 set -euo pipefail
-VIBE_REAL_UPGRADE_RECEIPT="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["receipt"])' "$VIBE_PRIVATE_EVIDENCE/real-upgrade-result.json")"
-VIBE_REAL_RESTORE_CONFIRM="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["restore_confirmation_digest"])' "$VIBE_REAL_UPGRADE_RECEIPT")"
+VIBE_REAL_UPGRADE_RECEIPT="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["receipt"])' "$VIBE_PRIVATE_EVIDENCE/real-upgrade-result.json")"
+VIBE_REAL_RESTORE_CONFIRM="$("$VIBE_PYTHON" -B -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["restore_confirmation_digest"])' "$VIBE_REAL_UPGRADE_RECEIPT")"
 VIBE_REAL_RESTORE_APPROVAL="MAC-3.1-REAL-RESTORE-$(date -u +%Y%m%dT%H%M%SZ)"
-CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
+CODEX_HOME="$VIBE_REAL_CODEX_HOME" "$VIBE_PYTHON" -B \
   "$VIBE_RELEASE_ROOT/scripts/install_skill.py" restore-version \
   --receipt "$VIBE_REAL_UPGRADE_RECEIPT" \
   --approval-id "$VIBE_REAL_RESTORE_APPROVAL" \
@@ -385,13 +439,13 @@ CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
 
 刷新 Codex App。首次安装应恢复未安装状态；升级应恢复原活动版本和原 manifest。用户实际观察与文件核验都要记录，命令退出 0 不能单独证明原状态。
 
-## 11. 私有原始证据和公开去标识收据
+## 12. 私有原始证据和公开去标识收据
 
 **私有原始证据**保留真实路径、完整 Release API JSON、资产索引、安装/升级/恢复收据、journal 和失败日志，访问权限保持 `0700`。绝对路径只保留在私有原始证据。
 
 **公开去标识收据**只包含：仓库身份和标签、提交 OID、三个资产 SHA-256、系统/架构/CPython 版本、各步骤状态码、13 文件计数、manifest/journal 摘要、locator SHA-256 与唯一匹配数量、用户观察状态、恢复状态和清理状态。不得包含用户名、主目录、绝对路径、Token、序列号、硬件 UUID、完整 JSON、原始日志或业务文本。公开收据从私有原始证据提取这些有界字段，不能直接复制原始收据。
 
-## 12. 清理与残留
+## 13. 清理与残留
 
 技术检查成功后，先记录测试自有目录中的清理前残留；失败或 `UNKNOWN` 时保留现场并停止。只有用户确认私有证据已保留后，才删除 `VIBE_ACCEPTANCE_ROOT`，不能删除 `VIBE_REAL_CODEX_HOME` 或其他未知目录。
 
@@ -399,7 +453,7 @@ CODEX_HOME="$VIBE_REAL_CODEX_HOME" python3 -B \
 set -euo pipefail
 find "$VIBE_ACCEPTANCE_ROOT" -mindepth 1 -maxdepth 4 -print \
   > "$VIBE_PRIVATE_EVIDENCE/residue-before-cleanup.txt"
-python3 - "$VIBE_ACCEPTANCE_ROOT" <<'PY'
+"$VIBE_PYTHON" -B - "$VIBE_ACCEPTANCE_ROOT" <<'PY'
 from pathlib import Path
 import shutil
 import sys
@@ -416,7 +470,7 @@ printf '%s\n' 'acceptance_root_removed=true' \
 
 公开去标识收据只写 `cleanup_status` 和残留数量，不公开 `find` 的原始路径列表。
 
-## 13. 稳定版实装
+## 14. 稳定版实装
 
 正式 Release 必须从相同公共仓库的 `v3.1.0` 元数据重新开始第 2–4 节，并逐项核对提交和三个 GitHub API digest。正式安装/升级、Codex App 用户观察和保留稳定版活动状态分别取得新的外部批准。
 

@@ -612,7 +612,7 @@ class SkillContractTests(unittest.TestCase):
 
         isolated_upgrade = acceptance.split(
             "## 7. 第二个临时根完成 3.0.3→3.1 升级和恢复", 1
-        )[1].split("## 8. 真实安装或升级：单独外部批准", 1)[0]
+        )[1].split("## 8. 真实根只读预检", 1)[0]
         for required in (
             "3.1 Darwin 安装器",
             "旧内容升级与恢复",
@@ -628,7 +628,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         real_upgrade = acceptance.split("受控升级路径：", 1)[1].split(
-            "## 9. Codex App 用户观察", 1
+            "## 10. Codex App 用户观察", 1
         )[0]
         for required in (
             "VIBE_REAL_UPGRADE_RECEIPT",
@@ -662,7 +662,7 @@ class SkillContractTests(unittest.TestCase):
             "cmp",
             'CODEX_HOME="$VIBE_TEMP_CODEX_HOME"',
             'CODEX_HOME="$VIBE_REAL_CODEX_HOME"',
-            "python3 -B -m unittest -v tests.test_evidence_filter",
+            '"$VIBE_PYTHON" -B -m unittest -v tests.test_evidence_filter',
             "普通文件",
             "符号链接拒绝",
             "特殊文件拒绝",
