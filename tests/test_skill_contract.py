@@ -569,6 +569,9 @@ class SkillContractTests(unittest.TestCase):
                 "Codex App 验收已完成",
                 "结论：Mac 本机就绪",
                 "结论：兼容验收通过",
+                "GitHub macOS 验证已通过",
+                "RC3 已发布",
+                "Mac 实装验收已经完成",
             ):
                 with self.subTest(name=name, forbidden=forbidden):
                     self.assertNotIn(forbidden, text)
@@ -589,6 +592,18 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("外部动作分别批准", release + acceptance)
         self.assertIn("生命周期状态由外部 Release 元数据", release)
         self.assertIn("经签名或平台回读的收据", release)
+        self.assert_contains_all(
+            release,
+            (
+                "GitHub Apple Silicon 技术门",
+                "macos-14",
+                "Python 3.11 与 3.14",
+                "不读取真实 `CODEX_HOME`",
+                "不能替代 Codex App 用户观察",
+                "RC1、RC2",
+                "v3.1.0-rc.3",
+            ),
+        )
         self.assert_contains_all(
             acceptance,
             (
