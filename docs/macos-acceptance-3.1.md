@@ -16,12 +16,15 @@ sw_vers
 test "$(uname -m)" = "arm64"
 sysctl -n machdep.cpu.brand_string
 VIBE_PYTHON="${VIBE_PYTHON:-$(command -v python3 || true)}"
-test -n "$VIBE_PYTHON"
+if test -z "$VIBE_PYTHON" || test ! -f "$VIBE_PYTHON" || test ! -x "$VIBE_PYTHON"; then
+  printf '%s\n' 'RUNTIME_UNVERIFIED' >&2
+  exit 4
+fi
 case "$VIBE_PYTHON" in
   /*) ;;
   *) printf '%s\n' 'RUNTIME_UNVERIFIED' >&2; exit 4 ;;
 esac
-VIBE_PYTHON="$("$VIBE_PYTHON" -B - <<'PY'
+VIBE_PYTHON_CHECK="$("$VIBE_PYTHON" -B - 2>&1 <<'PY'
 import os
 import platform
 import stat
@@ -51,7 +54,17 @@ if reason is not None:
     raise SystemExit(4)
 print(executable)
 PY
-)"
+)" || {
+  case "$VIBE_PYTHON_CHECK" in
+    PYTHON_UPDATE_REQUIRED) printf '%s\n' 'PYTHON_UPDATE_REQUIRED' >&2 ;;
+    *) printf '%s\n' 'RUNTIME_UNVERIFIED' >&2 ;;
+  esac
+  exit 4
+}
+case "$VIBE_PYTHON_CHECK" in
+  /*) VIBE_PYTHON="$VIBE_PYTHON_CHECK" ;;
+  *) printf '%s\n' 'RUNTIME_UNVERIFIED' >&2; exit 4 ;;
+esac
 "$VIBE_PYTHON" -B -c \
   'import platform, sys; print(platform.python_implementation(), platform.python_version(), sys.version_info.releaselevel, platform.machine())'
 ```

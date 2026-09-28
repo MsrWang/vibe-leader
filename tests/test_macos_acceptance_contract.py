@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
+import os
 import re
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,6 +24,45 @@ def continued_commands(text: str) -> str:
 
 
 class MacAcceptanceGuideContractTests(unittest.TestCase):
+    def test_python_bootstrap_rejects_missing_or_unusable_executable(self):
+        bootstrap = bash_blocks(guide_text())[0]
+        with tempfile.TemporaryDirectory() as directory:
+            tools = Path(directory)
+            for name, body in {
+                "sw_vers": "exit 0\n",
+                "uname": "printf 'arm64\\n'\n",
+                "sysctl": "exit 0\n",
+            }.items():
+                command = tools / name
+                command.write_text(f"#!/bin/sh\n{body}", encoding="utf-8")
+                command.chmod(0o700)
+            nonexecutable = tools / "nonexecutable-python"
+            nonexecutable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            nonexecutable.chmod(0o600)
+            broken_executable = tools / "broken-python"
+            broken_executable.write_text("#!/no-such-interpreter\n", encoding="utf-8")
+            broken_executable.chmod(0o700)
+
+            for name, candidate in (
+                ("python absent from PATH", None),
+                ("invalid explicit path", tools / "absent-python"),
+                ("nonexecutable explicit path", nonexecutable),
+                ("broken executable", broken_executable),
+            ):
+                with self.subTest(name=name):
+                    environment = os.environ.copy()
+                    environment["PATH"] = str(tools)
+                    if candidate is None:
+                        environment.pop("VIBE_PYTHON", None)
+                    else:
+                        environment["VIBE_PYTHON"] = str(candidate)
+                    result = subprocess.run(
+                        ["/bin/bash"], input=bootstrap, text=True,
+                        capture_output=True, env=environment, check=False,
+                    )
+                    self.assertEqual(result.returncode, 4)
+                    self.assertEqual(result.stderr.strip(), "RUNTIME_UNVERIFIED")
+
     def test_one_python_is_bound_and_reused(self):
         text = guide_text()
         self.assertEqual(text.count("command -v python3"), 1)
