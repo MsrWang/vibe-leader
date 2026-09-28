@@ -1,0 +1,53 @@
+name: macOS native gate
+
+on:
+  push:
+    branches:
+      - codex/vibe-leader-3.1-macos
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: macOS 14 arm64 / Python ${{ matrix.python-version }}
+    runs-on: macos-14
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11.14", "3.14.7"]
+    steps:
+      - name: Check out frozen candidate history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Select CPython
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Record bounded platform facts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sw_vers
+          test "$(uname -m)" = "arm64"
+          python -B -c 'import platform, sys; print(platform.python_implementation(), platform.python_version(), sys.version_info.releaselevel, platform.machine())'
+          git rev-parse HEAD
+      - name: Run native focused gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest -v tests.test_evidence_filter tests.test_macos_native_acceptance 2>&1 | tee "$RUNNER_TEMP/native-focused.log"
+          ! grep -Eq 'FAILED|errors=[1-9]|failures=[1-9]|skipped=[1-9]' "$RUNNER_TEMP/native-focused.log"
+      - name: Run complete regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -B -m unittest discover -s tests -v

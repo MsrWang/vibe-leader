@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE = ROOT / "docs" / "macos-acceptance-3.1.md"
+WORKFLOW = ROOT / ".github" / "workflows" / "macos-native.yml"
 
 
 def guide_text() -> str:
@@ -105,3 +106,26 @@ class MacAcceptanceGuideContractTests(unittest.TestCase):
                     capture_output=True, check=False,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
+
+
+class MacWorkflowContractTests(unittest.TestCase):
+    def test_workflow_is_arm64_read_only_and_pinned(self):
+        self.assertTrue(WORKFLOW.is_file())
+        text = WORKFLOW.read_text(encoding="utf-8")
+        for required in (
+            "runs-on: macos-14",
+            "contents: read",
+            'python-version: ${{ matrix.python-version }}',
+            'python-version: ["3.11.14", "3.14.7"]',
+            "fetch-depth: 0",
+            "tests.test_macos_native_acceptance",
+            "tests.test_evidence_filter",
+            "python -B -m unittest discover -s tests -v",
+            "cancel-in-progress: true",
+            "codex/vibe-leader-3.1-macos",
+        ):
+            self.assertIn(required, text)
+        self.assertIn("actions/checkout@11d5960a326750d5838078e36cf38b85af677262", text)
+        self.assertIn("actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1", text)
+        for forbidden in ("secrets.", "contents: write", "pull-requests: write", "git push"):
+            self.assertNotIn(forbidden, text)
