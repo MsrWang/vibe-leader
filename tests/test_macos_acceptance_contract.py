@@ -81,6 +81,19 @@ class MacAcceptanceGuideContractTests(unittest.TestCase):
         self.assertIn("git -c http.version=HTTP/1.1 clone", commands)
         self.assertIn("git -c http.version=HTTP/1.1 -C", commands)
 
+    def test_temporary_roots_are_canonical_before_child_paths(self):
+        text = guide_text()
+        for root, child in (
+            ("VIBE_ACCEPTANCE_ROOT", "VIBE_TRUSTED_REPO"),
+            ("VIBE_PRIVATE_EVIDENCE", "VIBE_RELEASE_JSON"),
+        ):
+            created = f'{root}="$(mktemp -d '
+            canonical = f'{root}="$(cd -P "${root}" && pwd -P)"'
+            self.assertIn(created, text)
+            self.assertIn(canonical, text)
+            self.assertLess(text.index(created), text.index(canonical))
+            self.assertLess(text.index(canonical), text.index(f'{child}='))
+
     def test_isolated_checks_precede_real_codex_home(self):
         text = guide_text()
         isolated = text.split("## 2. 绑定公共仓库", 1)[1].split(
@@ -116,11 +129,17 @@ class MacWorkflowContractTests(unittest.TestCase):
             "runs-on: macos-14",
             "contents: read",
             'python-version: ${{ matrix.python-version }}',
-            'python-version: ["3.11.14", "3.14.7"]',
+            'python-version: ["3.11.9", "3.14.7"]',
             "fetch-depth: 0",
             "tests.test_macos_native_acceptance",
             "tests.test_evidence_filter",
-            "python -B -m unittest discover -s tests -v",
+            "tests.test_install_skill.DarwinFilesystemIdentityTests",
+            "tests.test_install_skill.DarwinRenameBackendTests",
+            "tests.test_install_skill.MacPreflightTests",
+            "tests.test_macos_acceptance_contract",
+            "tests.test_release_archive",
+            "tests.test_skill_contract",
+            'export TMPDIR="$(cd -P "$RUNNER_TEMP" && pwd -P)"',
             "cancel-in-progress: true",
             "codex/vibe-leader-3.1-macos",
         ):
@@ -129,3 +148,4 @@ class MacWorkflowContractTests(unittest.TestCase):
         self.assertIn("actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1", text)
         for forbidden in ("secrets.", "contents: write", "pull-requests: write", "git push"):
             self.assertNotIn(forbidden, text)
+        self.assertNotIn("unittest discover -s tests", text)

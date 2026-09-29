@@ -4,7 +4,7 @@
 
 **Goal:** 在不占用用户实体 Mac 的前提下加固 3.1 验收流程，并用 GitHub 托管的 Apple Silicon macOS 运行器证明 RC3 的真实 Darwin 技术链，使用户 Mac 最后只承担一次 Codex App 实装验收。
 
-**Architecture:** 保留现有安装器、证据筛选器和发行工具的实现边界；先用静态合同约束 macOS 指南中的解释器、网络和阶段顺序，再增加只在 Darwin 上执行的原生生命周期集成测试。GitHub Actions 在 `macos-14`、CPython 3.11/3.14 上运行同一代码和完整回归；任何原生失败都回到聚焦测试和最小修复，不由实体 Mac 承担首次发现。
+**Architecture:** 保留现有安装器、证据筛选器和发行工具的实现边界；先用静态合同约束 macOS 指南中的解释器、网络和阶段顺序，再增加只在 Darwin 上执行的原生生命周期集成测试。GitHub Actions 在 `macos-14`、CPython 3.11/3.14 上运行同一代码、原生聚焦检查和 macOS 发行相关回归；WSL 执行完整回归。任何原生失败都回到聚焦测试和最小修复，不由实体 Mac 承担首次发现。
 
 **Tech Stack:** CPython 3.11–3.14 标准库、`unittest`、Bash、Git、GitHub Actions、macOS 14 Apple Silicon、现有 `install_skill.py` 与 `release_archive.py` CLI。
 
@@ -31,7 +31,7 @@
 | `tests/test_macos_acceptance_contract.py` | 静态验证解释器绑定、HTTP/1.1、`.part` 落盘、阶段顺序、Bash 语法和 Actions 安全边界 |
 | `docs/macos-acceptance-3.1.md` | 提供通用 Apple Silicon 验收命令；先完成隔离技术链，再进入真实根预检和独立批准 |
 | `tests/test_macos_native_acceptance.py` | 仅在 Darwin 原生运行 `statfs`、交换探针、发行包、临时首次安装及临时升级恢复 |
-| `.github/workflows/macos-native.yml` | 在 `macos-14` arm64、Python 3.11/3.14 上运行原生聚焦检查和完整回归 |
+| `.github/workflows/macos-native.yml` | 在 `macos-14` arm64、Python 3.11/3.14 上运行原生聚焦检查和 macOS 发行相关回归 |
 | `tests/test_skill_contract.py` | 保持 3.1 公开材料、证据边界和 13 文件合同一致，更新被新版命令替换的精确断言 |
 | `docs/release-3.1.0.md` | 说明三层验证、GitHub macOS 技术门、RC3 修复范围及仍需实体 Mac 证明的内容 |
 
@@ -468,11 +468,16 @@ class MacWorkflowContractTests(unittest.TestCase):
             "runs-on: macos-14",
             "contents: read",
             'python-version: ${{ matrix.python-version }}',
-            'python-version: ["3.11.14", "3.14.7"]',
+            'python-version: ["3.11.9", "3.14.7"]',
             "fetch-depth: 0",
             "tests.test_macos_native_acceptance",
             "tests.test_evidence_filter",
-            "python -B -m unittest discover -s tests -v",
+            "tests.test_install_skill.DarwinFilesystemIdentityTests",
+            "tests.test_install_skill.DarwinRenameBackendTests",
+            "tests.test_install_skill.MacPreflightTests",
+            "tests.test_macos_acceptance_contract",
+            "tests.test_release_archive",
+            "tests.test_skill_contract",
             "cancel-in-progress: true",
             "codex/vibe-leader-3.1-macos",
         ):
@@ -522,7 +527,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11.14", "3.14.7"]
+        python-version: ["3.11.9", "3.14.7"]
     steps:
       - name: Check out frozen candidate history
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -544,16 +549,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export TMPDIR="$(cd -P "$RUNNER_TEMP" && pwd -P)"
           python -B -m unittest -v tests.test_evidence_filter tests.test_macos_native_acceptance 2>&1 | tee "$RUNNER_TEMP/native-focused.log"
           ! grep -Eq 'FAILED|errors=[1-9]|failures=[1-9]|skipped=[1-9]' "$RUNNER_TEMP/native-focused.log"
-      - name: Run complete regression
+      - name: Run macOS release regression
         shell: bash
         run: |
           set -euo pipefail
-          python -B -m unittest discover -s tests -v
+          export TMPDIR="$(cd -P "$RUNNER_TEMP" && pwd -P)"
+          python -B -m unittest -v \
+            tests.test_install_skill.DarwinFilesystemIdentityTests \
+            tests.test_install_skill.DarwinRenameBackendTests \
+            tests.test_install_skill.MacPreflightTests \
+            tests.test_macos_acceptance_contract \
+            tests.test_release_archive \
+            tests.test_skill_contract 2>&1 | tee "$RUNNER_TEMP/macos-regression.log"
+          ! grep -Eq 'FAILED|errors=[1-9]|failures=[1-9]|skipped=[1-9]' "$RUNNER_TEMP/macos-regression.log"
 ```
 
 `actions/checkout` 的固定 SHA 已从官方 `refs/tags/v4` 核对为 `11d5960a326750d5838078e36cf38b85af677262`；`actions/setup-python` 的固定 SHA已从官方 `refs/tags/v6` 核对为 `ece7cb06caefa5fff74198d8649806c4678c61a1`。实施时只读复核，不自动跟随 tag 漂移。
+
+首次公开运行 `36502304631` 后的修订：`setup-python` 在该 arm64 运行器上没有 CPython 3.11.14 包，故矩阵选用可取得的 3.11.9 保持 3.11 最低兼容门。3.14.7 原生聚焦检查已通过；全仓发现把 WSL/Windows 专属 workbench 测试也作为 macOS 硬门，并让旧临时目录夹具触发 `/var`/`/private/var` 路径别名，故 macOS 门改为上述明确的发行相关测试集合，并使用物理规范路径作为测试 `TMPDIR`。本地 WSL 完整回归仍由 Task 5 执行。修订证据单独记录于 SDD Task 6 报告。
 
 - [ ] **Step 4: 运行工作流静态合同**
 

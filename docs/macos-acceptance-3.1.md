@@ -82,6 +82,8 @@ VIBE_PUBLIC_REPO_URL="https://github.com/MsrWang/vibe-leader.git"
 VIBE_RELEASE_TAG="v3.1.0-rc.2"
 VIBE_ACCEPTANCE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/vibe-leader-3.1.XXXXXX")"
 VIBE_PRIVATE_EVIDENCE="$(mktemp -d "${TMPDIR:-/tmp}/vibe-leader-private.XXXXXX")"
+VIBE_ACCEPTANCE_ROOT="$(cd -P "$VIBE_ACCEPTANCE_ROOT" && pwd -P)"
+VIBE_PRIVATE_EVIDENCE="$(cd -P "$VIBE_PRIVATE_EVIDENCE" && pwd -P)"
 chmod 700 "$VIBE_ACCEPTANCE_ROOT" "$VIBE_PRIVATE_EVIDENCE"
 VIBE_TRUSTED_REPO="$VIBE_ACCEPTANCE_ROOT/public-repo"
 VIBE_TRUSTED_REPO_PART="$VIBE_TRUSTED_REPO.part"
@@ -97,7 +99,7 @@ test ! -e "$VIBE_TRUSTED_REPO"
 mv "$VIBE_TRUSTED_REPO_PART" "$VIBE_TRUSTED_REPO"
 ```
 
-`VIBE_PRIVATE_EVIDENCE` 是**私有原始证据**目录，可保存真实绝对路径、完整平台 JSON、安装/升级/恢复收据和失败现场。它不能提交到公开仓库或公开工单。
+两个 `mktemp` 目录随即规范化为物理绝对路径，以便后续安装器对临时根进行精确身份核验。`VIBE_PRIVATE_EVIDENCE` 是**私有原始证据**目录，可保存真实绝对路径、完整平台 JSON、安装/升级/恢复收据和失败现场。它不能提交到公开仓库或公开工单。
 
 ## 3. 用 GitHub Release API 绑定三个下载资产
 
