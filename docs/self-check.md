@@ -1,10 +1,19 @@
 # 一次只读自检，先看卡在哪一步
 
-适用于拿到**包含 `scripts/doctor.py` 的完整源码**、希望检查已有安装的 Linux/WSL 用户，需要 Python 3.11+。请从[仓库当前源码](https://github.com/MsrWang/vibe-leader)获取；已发布的 3.0.3 发行包没有这个入口。脚本只读取本机材料，不安装、修复、改配置、启动 Codex 或调用模型，也不自动保存或上传报告。
+适用于希望检查已有安装的 Linux/WSL 用户，需要 Python 3.11+，无需安装额外 Python 包。下载 [3.0.4 完整发行包](https://github.com/MsrWang/vibe-leader/releases/download/v3.0.4/Vibe-Leader-3.0.4-GitHub.zip)，解压后保留整个 `Vibe-Leader-3.0.4` 目录；其中已包含 `scripts/doctor.py` 及所需模块。旧的 3.0.3 发行包没有这个入口。
+
+脚本只读取本机材料，不安装、修复、改配置、启动 Codex 或调用模型，也不自动保存或上传报告。已安装 3.0.3 的用户不必重装 Skill；本次发行的 13 个 Skill 文件与 3.0.3 相同。
 
 ## 运行
 
-先确认终端使用的 `CODEX_HOME` 就是当前 Codex 宿主的真实目录，然后在完整源码根运行：
+在 ZIP 下载目录解压并进入完整源码根：
+
+```bash
+python3 -m zipfile -e Vibe-Leader-3.0.4-GitHub.zip .
+cd Vibe-Leader-3.0.4
+```
+
+也可以使用图形界面解压，然后在解压目录中打开 Linux/WSL 终端。确认 `python3 --version` 为 3.11 或更高版本，并确认终端使用的 `CODEX_HOME` 就是当前 Codex 宿主的真实目录，然后运行：
 
 ```bash
 python3 -B scripts/doctor.py
@@ -28,7 +37,7 @@ python3 -B scripts/doctor.py --json
 | 安装 `NOT_FOUND` | 所选目录未安装；不代表其他宿主或其他目录也没有安装。 |
 | 安装 `DRIFT` | 文件或属性发生变化，需核对原因和恢复记录。 |
 | 安装 `UNKNOWN` | 路径、清单或读取条件不足；按原因继续调查。 |
-| 版本 `KNOWN_CONTENT` | 文件内容匹配内置的 3.0.3 指纹。旧清单没有发行版本字段，不能证明下载来源。 |
+| 版本 `KNOWN_CONTENT` | 文件内容匹配内置的 3.0.3 指纹；3.0.4 沿用相同 Skill 内容，显示 3.0.3 属于预期。旧清单没有发行版本字段，不能证明下载来源。 |
 | 版本 `UNKNOWN_CONTENT` | 没匹配内置指纹；可能是其他版本，不直接当成损坏。 |
 | 源码比较 `MATCH` / `DIFFERENT` | 安装文件内容与运行工具的这份源码一致／不同，不受文件模式差异影响。 |
 | 宿主发现 `NOT_CHECKED` | 没有提供发现记录，需要在当前宿主查看。 |

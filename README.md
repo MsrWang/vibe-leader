@@ -8,16 +8,18 @@ Vibe Leader 是一套给 Codex 使用的中文项目推进方法，以 **Skill�
 |---|---|
 | 第一次使用 | [快速开始](#快速开始)；也可以先看 [在线示例](https://huggingface.co/spaces/MsrWang0112/vibe-leader) |
 | 已经装好，继续项目 | [复制接续请求](docs/project-workflow.md#常用入口) |
-| 不确定装了什么、为什么没生效 | [只读自检](docs/self-check.md)（需包含新脚本的完整源码） |
+| 不确定装了什么、为什么没生效 | [只读自检](docs/self-check.md)（3.0.4 完整发行包已包含） |
 | 想反馈问题或使用感受 | [反馈方式](CONTRIBUTING.md#报告问题) |
 
-稳定版使用说明以 3.0.3 为基础。Mac 的 3.1 候选及其状态见[发行页](https://github.com/MsrWang/vibe-leader/releases)；各环境的实际加载与使用需要分别确认。
+当前稳定版为 **[3.0.4](https://github.com/MsrWang/vibe-leader/releases/tag/v3.0.4)**，包含只读自检、简短使用入口和反馈模板。Mac 的 3.1 候选及其状态见[发行页](https://github.com/MsrWang/vibe-leader/releases)；各环境的实际加载与使用需要分别确认。
 
 ## 快速开始
 
 ### 1. 安装并确认可见
 
-从[版本下载页](https://github.com/MsrWang/vibe-leader/releases)选择所需版本的完整源码 ZIP，保留包内文件，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成安装。3.0.3 增加可选的本地证据筛选器；3.0.2 或更早安装需要按受控升级流程更新实际安装才能获得这两个新文件。首次安装或升级后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
+下载 [Vibe-Leader-3.0.4-GitHub.zip](https://github.com/MsrWang/vibe-leader/releases/download/v3.0.4/Vibe-Leader-3.0.4-GitHub.zip)，解压并保留完整目录，按[安装指南第 1–2 节](docs/getting-started.md#1-准备与兼容检查)完成首次安装。首次安装或升级后，在 Codex 的 Skills 中确认“中文跨项目研发主管”可见且已启用。
+
+已经安装 3.0.3 的用户，可直接从解压目录运行[只读自检](docs/self-check.md)，无需重装 Skill；3.0.4 的 13 个 Skill 文件与 3.0.3 相同。3.0.2 或更早安装需要按受控升级流程更新，才能获得 3.0.3 增加的本地证据筛选功能。
 
 **已验证环境：Windows Codex Desktop 配合 Ubuntu/WSL。** 安装所需的 Python、Git、目录确认，以及已有版本的升级步骤，都在技术指南中说明；其他环境需先核对兼容性。
 
@@ -96,6 +98,7 @@ python3 -B -m unittest -q tests.test_behavior_scenarios tests.test_skill_route t
 
 | 版本 | 主要变化与证据范围 |
 |---|---|
+| [3.0.4](docs/release-3.0.4.md) | 完整发行包增加只读自检，精简日常入口并补充反馈模板；Skill 内容沿用 3.0.3。 |
 | [3.0.3](docs/release-3.0.3.md) | 大文件、多文件和长日志的可选本地证据筛选，Skill 共 13 个文件。 |
 | [3.0.2](docs/release-3.0.2.md) | 感觉跑偏时进行轻量纠偏，并在已有授权内继续。 |
 | [3.0.1](docs/release-3.0.1.md) | 稳定条件下连续推进到有意义检查点。 |
