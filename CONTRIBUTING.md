@@ -4,7 +4,14 @@ Vibe Leader 面向中文 Codex 用户，由 Jason Wong 个人维护。欢迎有�
 
 ## 报告问题
 
-普通问题使用本仓库 Issues。写明版本、系统、Codex 版本、最小合成步骤，以及预期和实际结果。将失败、未验证和无法判断分别说明，不把静态演示或合成测试当成真实模型结果。
+普通问题使用本仓库 Issues，可从两份模板中选一份：
+
+- [使用问题](.github/ISSUE_TEMPLATE/usage-problem.md)：版本与环境、预期、实际表现和最小复现。
+- [体验反馈](.github/ISSUE_TEMPLATE/experience-feedback.md)：这次任务、顺畅或费力的地方、希望改善的结果。
+
+不知道版本或无法稳定重现时直接写“未知”，不影响提交。已经运行过[只读自检](docs/self-check.md)的用户可附摘要；它是可选材料，不需要先跑全量测试。将失败、未检查和无法判断分别说明，不把静态示例、文件核验或保存的发现记录当成真实调用结果。
+
+在 [GitHub 新建 Issue](https://github.com/MsrWang/vibe-leader/issues/new/choose) 页面选择模板；模板合入默认分支后才会在那里出现。也可以先复制模板内容填写。
 
 安全问题先阅读 [SECURITY.md](SECURITY.md)。公开反馈不要包含 Token、Cookie、密码、私人项目、真实配置、安装备份或完整会话；使用虚构目录与最小样例。
 
@@ -27,7 +34,7 @@ python3 -B -m unittest -q tests.test_behavior_scenarios tests.test_skill_route t
 
 完整测试会创建和清理自己的临时文件、合成 Git 仓库和安装夹具，部分测试涉及 Windows/WSL；先阅读[测试边界](docs/limitations.md#测试与证据边界)。不要将测试指向现有安装或业务项目。真实模型评测、额外费用、真实安装与公开发布分别取得本次授权。
 
-静态演示位于 `demo/`，直接使用 HTML、CSS 和 JavaScript，无 npm 依赖。检查三个案例的切换、文档页签、提示词复制及拒绝回退、键盘操作及窄屏显示；确保没有网络 API、用户输入、持久化或追踪。演示说明的是预期流程，不是在线主管。
+静态演示位于 `demo/`，直接使用 HTML、CSS 和 JavaScript，无 npm 依赖。检查四个案例的切换、文档页签、提示词复制及拒绝回退、键盘操作及窄屏显示；确保没有网络 API、用户输入、持久化或追踪。演示说明的是预期流程，不是在线主管。
 
 <!-- SPDX-License-Identifier: MPL-2.0
 This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
