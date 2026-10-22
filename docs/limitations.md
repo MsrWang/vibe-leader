@@ -93,6 +93,8 @@ python3 -B -m workbench.evaluation_surface --help
 
 可先运行 README 的小范围确定性自检。运行完整 `unittest discover -s tests` 前，确认它会创建和清理自有临时文件、合成 Git 仓库及安装 fixture；部分 Skill 清单测试在源码父目录建立自己的临时根。WSL 的两个项目身份测试还会查询 Windows 临时路径，并在自有目录模拟根替换。另有独立 opt-in 的 Windows 安装集成。不要未经确认就执行全量或启用这些开关。
 
+从 ZIP 运行完整开发测试时，使用 Linux/WSL 的 `unzip` 解压到 `/tmp` 以外的可写目录，以保留 `tests/fixtures/evaluation_surface/fake_codex.py` 的 Unix 可执行权限，并使源码父目录中的临时夹具能被沙箱读取。Python 的 `zipfile -e` 不保留该权限；部分沙箱测试会遮蔽 `/tmp`，所以源码及相邻夹具也不能放在 `/tmp` 下。这些要求仅用于完整开发测试，不影响按[自检说明](self-check.md)通过 Python 运行 `scripts/doctor.py` 或它的 21 项功能测试。
+
 测试不应指向真实 `CODEX_HOME`、业务项目或现有安装。调整测试环境不能通过删除用例、增加 skip 或放宽负例来掩盖问题；skip/NOT_APPLICABLE、UNKNOWN/UNVERIFIED 和失败要分别报告。
 
 本版本交付证据按范围报告：

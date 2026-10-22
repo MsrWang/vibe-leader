@@ -29,6 +29,8 @@ python3 -B scripts/doctor.py
 
 自检在 WSL2 x86_64、CPython 3.14.4 上通过 21 项功能测试；默认全量回归为 `Ran 1070 tests; OK (skipped=6)`。测试使用临时安装和合成材料，覆盖正常、缺失、漂移、异常输入、发现记录、输出与只读约束，详见[验证范围](self-check.md#验证范围)。
 
+开发者从 ZIP 运行完整回归时，应使用 Linux/WSL 的 `unzip` 解压到 `/tmp` 以外的可写目录，保留测试夹具的可执行权限，详见[测试边界](limitations.md#测试与证据边界)。上面的 Python 解压方式可直接用于只读自检。
+
 自检只读取本机材料，不调用模型、不改配置、不自动保存或上传报告。文件检查完成不证明当前 App 已加载，也不替代实际使用观察。Mac 3.1 仍按独立候选版本的证据范围处理，3.0.4 自检入口不支持 macOS 或 Windows 原生 Python。
 
 <!-- SPDX-License-Identifier: MPL-2.0
